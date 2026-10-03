@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { authenticate } from '../../middleware/auth.js';
+import { validate } from '../../middleware/validation.js';
+import { subscriptionController as c } from './subscription.controller.js';
+import { subscriptionSchemas as s } from './subscription.validation.js';
+export const SubscriptionAdminRoutes = Router();
+SubscriptionAdminRoutes.use(authenticate(['ADMIN']));
+SubscriptionAdminRoutes.get('/plans', c.plans);
+SubscriptionAdminRoutes.post('/plans', validate(s.planCreate), c.createPlan);
+SubscriptionAdminRoutes.put('/plans/:id', validate(s.planUpdate), c.updatePlan);
+SubscriptionAdminRoutes.put('/:id', validate(s.update), c.update);

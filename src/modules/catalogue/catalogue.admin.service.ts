@@ -1,3 +1,7 @@
+import {
+  lockSupplier,
+  requireEntitlement,
+} from '../subscription/subscription.entitlements.js';
 import { prisma } from '../../config/database.js';
 import type { Prisma } from '../../generated/client.js';
 import { AppError } from '../../middleware/errorHandler.js';
@@ -7,6 +11,7 @@ import type {
   MachineInput,
 } from './catalogue.admin.validation.js';
 const include = {
+  supplier: { select: { id: true, companyName: true } },
   category: { select: { id: true, name: true, slug: true } },
   images: {
     orderBy: [{ position: 'asc' }, { id: 'asc' }],
@@ -45,8 +50,9 @@ function children(data: MachineInput) {
     },
   };
 }
-function fields(data: MachineInput) {
+function fields(data: MachineInput & { supplierId?: string | null }) {
   return {
+    ...(data.supplierId !== undefined ? { supplierId: data.supplierId } : {}),
     name: data.name,
     slug: data.slug,
     description: data.description,
@@ -105,26 +111,81 @@ export const catalogueAdminService = {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
-  async detail(id: string) {
-    const machine = await prisma.machine.findUnique({ where: { id }, include });
+  async detail(id: string, supplierId?: string) {
+    const machine = await prisma.machine.findUnique({
+      where: { id, ...(supplierId ? { supplierId } : {}) },
+      include,
+    });
     if (!machine) throw new AppError('Machine not found', 404);
     return machine;
   },
-  create(data: MachineInput) {
+  create(
+    data: MachineInput & { supplierId?: string | null },
+    owner?: { supplierId: string; userId: string },
+  ) {
+    const supplierId = owner?.supplierId ?? data.supplierId;
     return mutation(() =>
-      prisma.machine.create({
-        data: { ...fields(data), ...children(data) },
-        include,
+      prisma.$transaction(async (tx) => {
+        if (supplierId)
+          await requireEntitlement(tx, supplierId, {
+            userId: owner?.userId,
+            newListing: true,
+            publishing: data.status === 'PUBLISHED',
+            images: data.images.length,
+            specifications: data.specifications.length,
+          });
+        return tx.machine.create({
+          data: {
+            ...fields(data),
+            supplierId: supplierId ?? null,
+            ...children(data),
+          },
+          include,
+        });
       }),
     );
   },
-  update(id: string, data: MachineInput & { updatedAt: string }) {
+  update(
+    id: string,
+    data: MachineInput & { updatedAt: string; supplierId?: string | null },
+    owner?: { supplierId: string; userId: string },
+  ) {
     const { updatedAt } = data;
     const nextVersion = new Date(
       Math.max(Date.now(), new Date(updatedAt).getTime() + 1),
     );
     return mutation(() =>
       prisma.$transaction(async (tx) => {
+        const current = await tx.machine.findUnique({
+          where: { id },
+          select: { supplierId: true },
+        });
+        if (!current || (owner && current.supplierId !== owner.supplierId))
+          throw new AppError('Machine not found', 404);
+        const target =
+          owner?.supplierId ??
+          (data.supplierId === undefined
+            ? current.supplierId
+            : data.supplierId);
+        for (const supplierId of [
+          ...new Set(
+            [current.supplierId, target].filter((id): id is string => !!id),
+          ),
+        ].sort())
+          await lockSupplier(tx, supplierId);
+        if (
+          target &&
+          (owner ||
+            data.status === 'PUBLISHED' ||
+            target !== current.supplierId)
+        )
+          await requireEntitlement(tx, target, {
+            userId: owner?.userId,
+            newListing: target !== current.supplierId,
+            publishing: data.status === 'PUBLISHED',
+            images: data.images.length,
+            specifications: data.specifications.length,
+          });
         const changed = await tx.machine.updateMany({
           where: { id, updatedAt: new Date(updatedAt) },
           data: { ...fields(data), updatedAt: nextVersion },
@@ -152,9 +213,26 @@ export const catalogueAdminService = {
       }),
     );
   },
-  remove(id: string, updatedAt: string) {
+  remove(
+    id: string,
+    updatedAt: string,
+    owner?: { supplierId: string; userId: string },
+  ) {
     return mutation(() =>
       prisma.$transaction(async (tx) => {
+        const current = await tx.machine.findUnique({
+          where: { id },
+          select: { supplierId: true },
+        });
+        if (!current || (owner && current.supplierId !== owner.supplierId))
+          throw new AppError('Machine not found', 404);
+        if (current.supplierId) {
+          if (owner)
+            await requireEntitlement(tx, current.supplierId, {
+              userId: owner.userId,
+            });
+          else await lockSupplier(tx, current.supplierId);
+        }
         const deleted = await tx.machine.deleteMany({
           where: { id, updatedAt: new Date(updatedAt) },
         });

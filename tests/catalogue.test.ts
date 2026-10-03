@@ -100,6 +100,7 @@ test('public catalogue filters published records and paginates without leaking p
     'model',
     'name',
     'slug',
+    'supplier',
   ]);
   assert.deepEqual(first.machines[0].images, [
     { url: 'https://example.com/first.jpg', alt: 'Front' },

@@ -48,15 +48,18 @@ export const adminListQuery = z
   })
   .strict();
 export type AdminListQuery = z.infer<typeof adminListQuery>;
+const adminMachineBody = machineBody.extend({
+  supplierId: z.uuid().nullable().optional(),
+});
 export const adminSchemas = {
   categoryCreate: z.object({ body: categoryBody }),
   categoryUpdate: z.object({ params, body: categoryBody }),
   id: z.object({ params }),
   list: z.object({ query: adminListQuery }),
-  create: z.object({ body: machineBody }),
+  create: z.object({ body: adminMachineBody }),
   update: z.object({
     params,
-    body: machineBody.extend({ updatedAt: z.iso.datetime() }),
+    body: adminMachineBody.extend({ updatedAt: z.iso.datetime() }),
   }),
   remove: z.object({
     params,

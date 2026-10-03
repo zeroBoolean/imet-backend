@@ -1,3 +1,4 @@
+import { publicMachineWhere } from '../subscription/subscription.entitlements.js';
 import { prisma } from '../../config/database.js';
 import type { Prisma } from '../../generated/client.js';
 import { AppError } from '../../middleware/errorHandler.js';
@@ -10,6 +11,7 @@ const publicSelect = {
   description: true,
   manufacturer: true,
   model: true,
+  supplier: { select: { id: true, companyName: true, isVerified: true } },
   category: { select: { name: true, slug: true } },
   images: {
     orderBy: [{ position: 'asc' }, { id: 'asc' }],
@@ -19,22 +21,27 @@ const publicSelect = {
 export const catalogueService = {
   async categories() {
     return prisma.machineCategory.findMany({
-      where: { machines: { some: { status: 'PUBLISHED' } } },
+      where: { machines: { some: publicMachineWhere() } },
       select: { name: true, slug: true },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
   },
-  async list({ q, category, page, limit }: CatalogueQuery) {
+  async list({ q, category, supplier, page, limit }: CatalogueQuery) {
     const where: Prisma.MachineWhereInput = {
-      status: 'PUBLISHED',
+      ...publicMachineWhere(),
+      ...(supplier ? { supplierId: supplier } : {}),
       ...(category ? { category: { slug: category } } : {}),
       ...(q
         ? {
-            OR: ['name', 'description', 'manufacturer', 'model'].map(
-              (field) => ({
-                [field]: { contains: q, mode: 'insensitive' },
-              }),
-            ),
+            AND: [
+              {
+                OR: ['name', 'description', 'manufacturer', 'model'].map(
+                  (field) => ({
+                    [field]: { contains: q, mode: 'insensitive' },
+                  }),
+                ),
+              },
+            ],
           }
         : {}),
     };
@@ -61,7 +68,7 @@ export const catalogueService = {
   },
   async detail(slug: string) {
     const machine = await prisma.machine.findFirst({
-      where: { slug, status: 'PUBLISHED' },
+      where: { slug, ...publicMachineWhere() },
       select: {
         ...publicSelect,
         specifications: {

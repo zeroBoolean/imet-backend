@@ -36,6 +36,7 @@ model User {
   passwordResetExpires       DateTime?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
+  supplier                   Supplier?
   assignedRole               UserRoleAssignment[]
   sessions                   UserSession[]
 
@@ -87,6 +88,8 @@ model Machine {
   description    String
   manufacturer   String                 @db.VarChar(200)
   model          String                 @db.VarChar(200)
+  supplierId     String?
+  supplier       Supplier?              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   categoryId     String
   category       MachineCategory        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   status         MachineStatus          @default(DRAFT)
@@ -95,6 +98,7 @@ model Machine {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
+  @@index([supplierId, status])
   @@index([status, categoryId, name, id])
   @@map("machines")
 }
@@ -121,4 +125,107 @@ model MachineSpecification {
 
   @@index([machineId, position])
   @@map("machine_specifications")
+}
+
+enum SupplierType {
+  LOCAL
+  INTERNATIONAL
+}
+
+enum SupplierStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+  INACTIVE
+}
+
+enum SubscriptionState {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum MarketplaceVisibility {
+  HIDDEN
+  STANDARD
+  FEATURED
+}
+
+model Supplier {
+  id                 String                 @id @default(uuid())
+  userId             String                 @unique
+  user               User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  companyName        String                 @db.VarChar(200)
+  type               SupplierType
+  description        String
+  contactName        String                 @db.VarChar(100)
+  businessEmail      String                 @db.VarChar(254)
+  businessPhone      String                 @db.VarChar(40)
+  address            String                 @db.VarChar(2000)
+  city               String                 @db.VarChar(100)
+  country            String                 @db.VarChar(100)
+  registrationNumber String?                @db.VarChar(150)
+  website            String?
+  logoUrl            String?
+  documents          Json
+  status             SupplierStatus         @default(PENDING)
+  isVerified         Boolean                @default(false)
+  marketplaceVisible Boolean                @default(false)
+  reviewNote         String?                @db.VarChar(2000)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  subscriptions      SupplierSubscription[]
+  machines           Machine[]
+
+  @@index([status, marketplaceVisible])
+  @@map("suppliers")
+}
+
+model SubscriptionPlan {
+  id                  String                 @id @default(uuid())
+  name                String                 @db.VarChar(100)
+  eligibleTypes       SupplierType[]
+  durationDays        Int
+  price               Decimal                @db.Decimal(12, 2)
+  currency            String                 @db.VarChar(3)
+  listingLimit        Int
+  imageLimit          Int
+  specificationLimit  Int
+  canPublishMachinery Boolean
+  visibility          MarketplaceVisibility
+  isActive            Boolean                @default(true)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  subscriptions       SupplierSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model SupplierSubscription {
+  id                  String                @id @default(uuid())
+  supplierId          String
+  supplier            Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  planId              String
+  plan                SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  isCurrent           Boolean               @default(true)
+  state               SubscriptionState
+  startsAt            DateTime
+  endsAt              DateTime
+  planName            String                @db.VarChar(100)
+  supplierType        SupplierType
+  durationDays        Int
+  price               Decimal               @db.Decimal(12, 2)
+  currency            String                @db.VarChar(3)
+  listingLimit        Int
+  imageLimit          Int
+  specificationLimit  Int
+  canPublishMachinery Boolean
+  visibility          MarketplaceVisibility
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([supplierId, isCurrent, state, startsAt, endsAt])
+  @@map("supplier_subscriptions")
 }

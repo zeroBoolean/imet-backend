@@ -70,3 +70,7 @@ The `milestone-2` branch includes public catalogue APIs and an additive Prisma m
 ## Milestone 3
 
 The `milestone-3` branch adds admin-only catalogue management APIs. See [Milestone 3](docs/milestone-3.md) for routes, payload limits, publication behavior, optimistic machine edits/deletes and setup. It reuses the existing schema and has no new migration or environment variables.
+
+## Milestone 4
+
+The `milestone-4` branch adds supplier applications/admin approval, public supplier profiles, admin-defined plans, manual subscription terms/history and backend-enforced supplier machinery entitlements. Apply the additive migration with `npm run db:generate` and `npm run db:deploy`. Existing environments must set `PUBLIC_SIGNUP_ROLE=BUYER` for registration and retain the M1 Resend/Redis worker configuration for email verification. See [Milestone 4](docs/milestone-4.md) for setup, routes, privacy, quota and renewal rules. No payment processing is included.
