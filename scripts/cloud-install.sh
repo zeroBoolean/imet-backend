@@ -5,6 +5,7 @@ export npm_config_cache=/workspace/.npm-cache
 cd /workspace/imet-server
 test -e .env || cp .env.example .env
 npm ci --no-fund --no-audit
+node scripts/init-local-env.mjs
 npm run db:validate
 cd /workspace/imet-client
 test -e .env.local || cp .env.example .env.local

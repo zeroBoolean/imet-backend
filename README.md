@@ -58,3 +58,7 @@ npm test
 Tests require the development database. They verify real database readiness, malformed JSON, 404 responses, CORS/security headers, schema transformations, and field errors. The frontend README describes the companion application.
 
 `docker compose down` stops local services while retaining volumes. Avoid `down -v` unless intentionally deleting development data.
+
+## Milestone 1 authentication
+
+See [the M1 report](docs/milestone-1.md) for current endpoints, signup-policy gating, secure configuration, email worker startup, migration and testing details. Run `node scripts/init-local-env.mjs` before starting M1 to initialize missing development signing secrets without overwriting existing values. Apply the reviewed authentication migration with `npm run db:deploy`. Public signup is disabled while policy approval is pending.

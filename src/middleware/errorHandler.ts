@@ -17,17 +17,15 @@ export const errorHandler: ErrorRequestHandler = (
 ) => {
   const timestamp = new Date().toISOString();
   if (error instanceof ZodError) {
-    res
-      .status(422)
-      .json({
-        success: false,
-        message: 'Validation failed',
-        errors: error.issues.map((issue) => ({
-          path: issue.path.map(String),
-          message: issue.message,
-        })),
-        timestamp,
-      });
+    res.status(422).json({
+      success: false,
+      message: 'Validation failed',
+      errors: error.issues.map((issue) => ({
+        path: issue.path.map(String),
+        message: issue.message,
+      })),
+      timestamp,
+    });
     return;
   }
   if (
@@ -46,27 +44,21 @@ export const errorHandler: ErrorRequestHandler = (
     'type' in error &&
     error.type === 'entity.too.large'
   ) {
-    res
-      .status(413)
-      .json({
-        success: false,
-        message: 'Request body is too large',
-        timestamp,
-      });
+    res.status(413).json({
+      success: false,
+      message: 'Request body is too large',
+      timestamp,
+    });
     return;
   }
   const status = error instanceof AppError ? error.statusCode : 500;
   if (status >= 500) logger.error('Unhandled request error');
-  res
-    .status(status)
-    .json({
-      success: false,
-      message:
-        status < 500 && error instanceof AppError
-          ? error.message
-          : 'Internal server error',
-      timestamp,
-    });
+  res.status(status).json({
+    success: false,
+    message:
+      error instanceof AppError ? error.message : 'Internal server error',
+    timestamp,
+  });
 };
 export const notFoundHandler: RequestHandler = (_req, _res, next) =>
   next(new AppError('Resource not found', 404));

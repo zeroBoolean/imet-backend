@@ -1,3 +1,4 @@
+import { closeEmailQueue } from './emails/queue.js';
 import { logger } from './utils/logger.js';
 import app from './app.js';
 import { config } from './config/env.js';
@@ -13,6 +14,7 @@ const shutdown = () => {
   const timeout = setTimeout(() => process.exit(1), 10_000);
   timeout.unref();
   server.close(async () => {
+    await closeEmailQueue();
     await disconnectDatabase();
     clearTimeout(timeout);
     process.exit(0);

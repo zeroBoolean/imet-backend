@@ -12,11 +12,9 @@ export const generalLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   handler: (_req, res) =>
-    res
-      .status(429)
-      .json({
-        success: false,
-        message: 'Too many requests. Try again later.',
-        timestamp: new Date().toISOString(),
-      }),
+    res.status(429).json({
+      success: false,
+      message: 'Too many requests. Try again later.',
+      timestamp: new Date().toISOString(),
+    }),
 });

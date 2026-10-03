@@ -18,31 +18,41 @@
     "db:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "worker": "tsx src/emails/worker.ts",
+    "worker:prod": "node dist/emails/worker.js",
+    "admin:create": "tsx scripts/create-admin.ts",
+    "env:init": "node scripts/init-local-env.mjs"
   },
   "dependencies": {
-    "express": "5.2.1",
-    "cors": "2.8.5",
-    "helmet": "8.1.0",
-    "express-rate-limit": "8.7.0",
-    "dotenv": "17.2.3",
-    "zod": "4.3.6",
-    "@prisma/client": "7.10.0",
     "@prisma/adapter-pg": "7.10.0",
-    "pg": "8.17.2"
+    "@prisma/client": "7.10.0",
+    "argon2": "^0.45.1",
+    "bullmq": "^5.81.5",
+    "cors": "2.8.5",
+    "dotenv": "17.2.3",
+    "express": "5.2.1",
+    "express-rate-limit": "8.7.0",
+    "helmet": "8.1.0",
+    "ioredis": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "8.17.2",
+    "resend": "^6.32.0",
+    "zod": "4.3.6"
   },
   "devDependencies": {
-    "prisma": "7.10.0",
-    "typescript": "5.9.3",
-    "tsx": "4.20.5",
-    "@types/node": "^24",
-    "@types/express": "^5",
+    "@eslint/js": "^9",
     "@types/cors": "^2",
+    "@types/express": "^5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24",
     "@types/pg": "^8",
     "eslint": "^9",
-    "@eslint/js": "^9",
-    "typescript-eslint": "^8",
-    "prettier": "^3"
+    "prettier": "^3",
+    "prisma": "7.10.0",
+    "tsx": "4.20.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8"
   },
   "overrides": {
     "mysql2": "3.24.5"

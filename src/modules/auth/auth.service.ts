@@ -1,0 +1,256 @@
+import { prisma } from '../../config/database.js';
+import { config } from '../../config/env.js';
+import { AppError } from '../../middleware/errorHandler.js';
+import { hashPassword, verifyPassword } from '../../utils/hashing.js';
+import { newToken, tokenHash, expiresIn } from '../../utils/tokens.js';
+import { signAccessToken } from '../../utils/jwt.js';
+import { MailService } from '../../emails/mailService.js';
+import type { Prisma } from '../../generated/client.js';
+const publicSelect = {
+  id: true,
+  email: true,
+  displayName: true,
+  status: true,
+  isEmailVerified: true,
+  assignedRole: { select: { role: true } },
+} satisfies Prisma.UserSelect;
+let dummyPasswordHash: Promise<string> | undefined;
+export const authService = {
+  async register(data: {
+    email: string;
+    password: string;
+    displayName: string;
+  }) {
+    if (!config.PUBLIC_SIGNUP_ROLE)
+      throw new AppError(
+        'Account registration is currently unavailable. Please try again later.',
+        503,
+      );
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (existing) return;
+    const password = await hashPassword(data.password);
+    const token = newToken();
+    try {
+      await prisma.user.create({
+        data: {
+          ...data,
+          password,
+          emailVerificationTokenHash: token.hash,
+          emailVerificationExpires: expiresIn(60),
+          assignedRole: { create: { role: config.PUBLIC_SIGNUP_ROLE } },
+        },
+      });
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error &&
+        'code' in error &&
+        error.code === 'P2002'
+      )
+        return;
+      throw error;
+    }
+    await MailService.sendAuthEmail(
+      data.email,
+      data.displayName,
+      'verify-user',
+      token.raw,
+    );
+  },
+  async verify(token: string) {
+    const result = await prisma.user.updateMany({
+      where: {
+        emailVerificationTokenHash: tokenHash(token),
+        emailVerificationExpires: { gt: new Date() },
+        status: 'PENDING_VERIFICATION',
+      },
+      data: {
+        isEmailVerified: true,
+        status: 'ACTIVE',
+        emailVerificationTokenHash: null,
+        emailVerificationExpires: null,
+      },
+    });
+    if (!result.count)
+      throw new AppError('Invalid or expired verification link', 400);
+  },
+  async login(email: string, password: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    const candidateHash =
+      user?.password ??
+      (await (dummyPasswordHash ??= hashPassword(
+        'DummyComparisonPassword123!',
+      )));
+    const validPassword = await verifyPassword(candidateHash, password);
+    if (!user || !validPassword)
+      throw new AppError('Invalid email or password', 401);
+    if (!user.isEmailVerified)
+      throw new AppError('Verify your email before signing in', 403);
+    if (user.status !== 'ACTIVE')
+      throw new AppError('Account is not active', 403);
+    const token = newToken();
+    const session = await prisma.$transaction(async (tx) => {
+      // Serialize session issuance with password/status changes on this account.
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+      const current = await tx.user.findUnique({ where: { id: user.id } });
+      if (!current || current.password !== user.password)
+        throw new AppError('Invalid email or password', 401);
+      if (current.status !== 'ACTIVE' || !current.isEmailVerified)
+        throw new AppError('Account is not active', 403);
+      return tx.userSession.create({
+        data: {
+          userId: user.id,
+          refreshTokenHash: token.hash,
+          expiresAt: expiresIn(7 * 24 * 60),
+        },
+      });
+    });
+    return {
+      user: await this.me(user.id),
+      accessToken: signAccessToken(user.id, session.id),
+      refreshToken: token.raw,
+      expiresAt: Date.now() + 15 * 60_000,
+    };
+  },
+  async me(id: string) {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: publicSelect,
+    });
+    if (!user) throw new AppError('User not found', 404);
+    const { assignedRole, ...rest } = user;
+    return { ...rest, roles: assignedRole.map((item) => item.role) };
+  },
+  async resend(email: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.status !== 'PENDING_VERIFICATION' || user.isEmailVerified)
+      return;
+    const token = newToken();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationTokenHash: token.hash,
+        emailVerificationExpires: expiresIn(60),
+      },
+    });
+    await MailService.sendAuthEmail(
+      email,
+      user.displayName,
+      'verify-user',
+      token.raw,
+    );
+  },
+  async forgot(email: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.status !== 'ACTIVE' || !user.isEmailVerified) return;
+    const token = newToken();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: token.hash,
+        passwordResetExpires: expiresIn(60),
+      },
+    });
+    await MailService.sendAuthEmail(
+      email,
+      user.displayName,
+      'reset-password',
+      token.raw,
+    );
+  },
+  async reset(token: string, password: string) {
+    const hash = tokenHash(token);
+    const user = await prisma.user.findUnique({
+      where: { passwordResetTokenHash: hash },
+    });
+    if (!user || user.status !== 'ACTIVE')
+      throw new AppError('Invalid or expired reset link', 400);
+    const hashedPassword = await hashPassword(password);
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          passwordResetTokenHash: hash,
+          passwordResetExpires: { gt: new Date() },
+          status: 'ACTIVE',
+        },
+        data: {
+          password: hashedPassword,
+          passwordResetTokenHash: null,
+          passwordResetExpires: null,
+        },
+      });
+      if (!changed.count)
+        throw new AppError('Invalid or expired reset link', 400);
+      await tx.userSession.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+  },
+  async changePassword(id: string, current: string, password: string) {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user || !(await verifyPassword(user.password, current)))
+      throw new AppError('Current password is incorrect', 400);
+    const hashedPassword = await hashPassword(password);
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: { id, password: user.password, status: 'ACTIVE' },
+        data: {
+          password: hashedPassword,
+          passwordResetTokenHash: null,
+          passwordResetExpires: null,
+        },
+      });
+      if (!changed.count)
+        throw new AppError('Account changed; sign in again', 409);
+      await tx.userSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+  },
+  async refresh(raw: string) {
+    const oldHash = tokenHash(raw),
+      next = newToken();
+    const session = await prisma.$transaction(async (tx) => {
+      const old = await tx.userSession.findUnique({
+        where: { refreshTokenHash: oldHash },
+        include: { user: true },
+      });
+      if (
+        !old ||
+        old.revokedAt ||
+        old.expiresAt <= new Date() ||
+        old.user.status !== 'ACTIVE' ||
+        !old.user.isEmailVerified
+      )
+        throw new AppError('Invalid or expired session', 401);
+      const result = await tx.userSession.updateMany({
+        where: {
+          id: old.id,
+          refreshTokenHash: oldHash,
+          revokedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { refreshTokenHash: next.hash },
+      });
+      if (!result.count) throw new AppError('Invalid or expired session', 401);
+      return old;
+    });
+    return {
+      user: await this.me(session.userId),
+      accessToken: signAccessToken(session.userId, session.id),
+      refreshToken: next.raw,
+      expiresAt: Date.now() + 15 * 60_000,
+    };
+  },
+  async logout(userId: string, sessionId: string, all = false) {
+    await prisma.userSession.updateMany({
+      where: { userId, ...(all ? {} : { id: sessionId }), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  },
+};

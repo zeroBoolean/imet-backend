@@ -5,4 +5,53 @@ generator client {
 datasource db {
  provider = "postgresql"
 }
-// Business models and their migrations will be introduced in the relevant milestones.
+enum UserRole {
+ BUYER
+ LOCAL_SUPPLIER
+ INTERNATIONAL_MANUFACTURER
+ SALES_PERSON
+ INDEPENDENT_SELLER
+ ADMIN
+}
+enum UserStatus {
+ ACTIVE
+ INACTIVE
+ SUSPENDED
+ PENDING_VERIFICATION
+}
+model User {
+ id String @id @default(uuid())
+ email String @unique @db.VarChar(254)
+ displayName String @db.VarChar(100)
+ password String
+ status UserStatus @default(PENDING_VERIFICATION)
+ isEmailVerified Boolean @default(false)
+ emailVerificationTokenHash String? @unique
+ emailVerificationExpires DateTime?
+ passwordResetTokenHash String? @unique
+ passwordResetExpires DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ assignedRole UserRoleAssignment[]
+ sessions UserSession[]
+ @@index([status])
+ @@map("users")
+}
+model UserRoleAssignment {
+ userId String
+ role UserRole
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ @@id([userId, role])
+ @@map("user_role_assignments")
+}
+model UserSession {
+ id String @id @default(uuid())
+ userId String
+ user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ refreshTokenHash String @unique
+ expiresAt DateTime
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ @@index([userId, revokedAt])
+ @@map("user_sessions")
+}
