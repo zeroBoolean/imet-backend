@@ -1,57 +1,124 @@
 generator client {
- provider = "prisma-client"
- output = "../src/generated"
+  provider = "prisma-client"
+  output   = "../src/generated"
 }
+
 datasource db {
- provider = "postgresql"
+  provider = "postgresql"
 }
+
 enum UserRole {
- BUYER
- LOCAL_SUPPLIER
- INTERNATIONAL_MANUFACTURER
- SALES_PERSON
- INDEPENDENT_SELLER
- ADMIN
+  BUYER
+  LOCAL_SUPPLIER
+  INTERNATIONAL_MANUFACTURER
+  SALES_PERSON
+  INDEPENDENT_SELLER
+  ADMIN
 }
+
 enum UserStatus {
- ACTIVE
- INACTIVE
- SUSPENDED
- PENDING_VERIFICATION
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
 }
+
 model User {
- id String @id @default(uuid())
- email String @unique @db.VarChar(254)
- displayName String @db.VarChar(100)
- password String
- status UserStatus @default(PENDING_VERIFICATION)
- isEmailVerified Boolean @default(false)
- emailVerificationTokenHash String? @unique
- emailVerificationExpires DateTime?
- passwordResetTokenHash String? @unique
- passwordResetExpires DateTime?
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
- assignedRole UserRoleAssignment[]
- sessions UserSession[]
- @@index([status])
- @@map("users")
+  id                         String               @id @default(uuid())
+  email                      String               @unique @db.VarChar(254)
+  displayName                String               @db.VarChar(100)
+  password                   String
+  status                     UserStatus           @default(PENDING_VERIFICATION)
+  isEmailVerified            Boolean              @default(false)
+  emailVerificationTokenHash String?              @unique
+  emailVerificationExpires   DateTime?
+  passwordResetTokenHash     String?              @unique
+  passwordResetExpires       DateTime?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+  assignedRole               UserRoleAssignment[]
+  sessions                   UserSession[]
+
+  @@index([status])
+  @@map("users")
 }
+
 model UserRoleAssignment {
- userId String
- role UserRole
- user User @relation(fields: [userId], references: [id], onDelete: Cascade)
- @@id([userId, role])
- @@map("user_role_assignments")
+  userId String
+  role   UserRole
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+  @@map("user_role_assignments")
 }
+
 model UserSession {
- id String @id @default(uuid())
- userId String
- user User @relation(fields: [userId], references: [id], onDelete: Cascade)
- refreshTokenHash String @unique
- expiresAt DateTime
- revokedAt DateTime?
- createdAt DateTime @default(now())
- @@index([userId, revokedAt])
- @@map("user_sessions")
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+  @@map("user_sessions")
+}
+
+// Public catalogue contains no price or supplier contact fields.
+enum MachineStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model MachineCategory {
+  id       String    @id @default(uuid())
+  name     String    @db.VarChar(100)
+  slug     String    @unique @db.VarChar(120)
+  machines Machine[]
+
+  @@map("machine_categories")
+}
+
+model Machine {
+  id             String                 @id @default(uuid())
+  name           String                 @db.VarChar(200)
+  slug           String                 @unique @db.VarChar(220)
+  description    String
+  manufacturer   String                 @db.VarChar(200)
+  model          String                 @db.VarChar(200)
+  categoryId     String
+  category       MachineCategory        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  status         MachineStatus          @default(DRAFT)
+  images         MachineImage[]
+  specifications MachineSpecification[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([status, categoryId, name, id])
+  @@map("machines")
+}
+
+model MachineImage {
+  id        String  @id @default(uuid())
+  machineId String
+  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String  @db.VarChar(250)
+  position  Int     @default(0)
+
+  @@index([machineId, position])
+  @@map("machine_images")
+}
+
+model MachineSpecification {
+  id        String  @id @default(uuid())
+  machineId String
+  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  label     String  @db.VarChar(100)
+  value     String  @db.VarChar(500)
+  position  Int     @default(0)
+
+  @@index([machineId, position])
+  @@map("machine_specifications")
 }
