@@ -1,0 +1,50 @@
+{
+  "name": "imet-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "tsx --test tests/*.test.ts",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "cors": "2.8.5",
+    "helmet": "8.1.0",
+    "express-rate-limit": "8.7.0",
+    "dotenv": "17.2.3",
+    "zod": "4.3.6",
+    "@prisma/client": "7.10.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "pg": "8.17.2"
+  },
+  "devDependencies": {
+    "prisma": "7.10.0",
+    "typescript": "5.9.3",
+    "tsx": "4.20.5",
+    "@types/node": "^24",
+    "@types/express": "^5",
+    "@types/cors": "^2",
+    "@types/pg": "^8",
+    "eslint": "^9",
+    "@eslint/js": "^9",
+    "typescript-eslint": "^8",
+    "prettier": "^3"
+  },
+  "overrides": {
+    "mysql2": "3.24.5"
+  }
+}
