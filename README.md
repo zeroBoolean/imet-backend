@@ -66,3 +66,7 @@ See [the M1 report](docs/milestone-1.md) for current endpoints, signup-policy ga
 ## Milestone 2
 
 The `milestone-2` branch includes public catalogue APIs and an additive Prisma migration. Apply it to the intended database with `npm run db:deploy`. See [Milestone 2](docs/milestone-2.md) for API contracts, publication rules, validation and deferred features. No sample records are published automatically.
+
+## Milestone 3
+
+The `milestone-3` branch adds admin-only catalogue management APIs. See [Milestone 3](docs/milestone-3.md) for routes, payload limits, publication behavior, optimistic machine edits/deletes and setup. It reuses the existing schema and has no new migration or environment variables.

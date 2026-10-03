@@ -1,9 +1,11 @@
+import { CatalogueAdminRoutes } from '../modules/catalogue/catalogue.admin.routes.js';
 import { CatalogueRoutes } from '../modules/catalogue/catalogue.routes.js';
 import { UserRoutes } from '../modules/user/user.routes.js';
 import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use('/admin/catalogue', CatalogueAdminRoutes);
 router.use('/catalogue', CatalogueRoutes);
 router.use('/auth', AuthRoutes);
 router.use('/user', UserRoutes);
