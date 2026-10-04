@@ -1,3 +1,4 @@
+import { syncSalesForRfq } from '../sales/sales.sync.js';
 import { prisma } from '../../config/database.js';
 import type { Prisma } from '../../generated/client.js';
 import { AppError } from '../../middleware/errorHandler.js';
@@ -147,6 +148,7 @@ export const rfqService = {
             });
             await rfqEvent(tx, id, null, 'ROUTED', {}, [r.buyerId]);
           } else await rfqEvent(tx, id, null, 'ROUTING_UNMATCHED');
+          await syncSalesForRfq(tx, id, a.id);
           return {
             rfq: await tx.rfq.findUniqueOrThrow({ where: { id } }),
             routing,
@@ -366,6 +368,7 @@ export const rfqService = {
           r.buyerId,
           ...leads.map((l) => l.recipientId),
         ]);
+        await syncSalesForRfq(tx, id, a.id);
         return updated;
       }),
     ),
@@ -481,6 +484,7 @@ export const rfqService = {
           await rfqEvent(tx, id, a.id, 'REROUTED', { status: next }, [
             r.buyerId,
           ]);
+          await syncSalesForRfq(tx, id, a.id);
           return updated;
         },
         { timeout: 15000 },

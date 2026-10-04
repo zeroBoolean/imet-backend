@@ -1,3 +1,4 @@
+import { syncSalesForRfq } from '../sales/sales.sync.js';
 import { prisma } from '../../config/database.js';
 import { config } from '../../config/env.js';
 import { getEmailQueue } from '../../emails/queue.js';
@@ -48,6 +49,7 @@ export async function expireRfqs(now = new Date()) {
         r.buyerId,
         ...leads.map((l) => l.recipientId),
       ]);
+      await syncSalesForRfq(tx, id);
     });
   const reminderDue = await prisma.rfq.findMany({
     where: {

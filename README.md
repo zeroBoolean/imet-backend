@@ -78,3 +78,7 @@ The `milestone-4` branch adds supplier applications/admin approval, public suppl
 ## Milestone 5
 
 RFQ lifecycle, recipient routing, private quotes/messages, subscription lead caps, contact gating, admin intervention, private Bunny attachments and BullMQ email/expiry jobs are documented in [docs/milestone-5.md](docs/milestone-5.md). Run both the email and RFQ workers. Live transfer/delivery requires secure provider credentials.
+
+## Milestone 6
+
+Private recipient-owned sales pipelines, manual records from accepted M5 quotes, final completion/cancellation, buyer read-only purchases and admin oversight are documented in [docs/milestone-6.md](docs/milestone-6.md). Apply the additive migration using `npm run db:deploy` before starting the matching frontend. Supplier history survives subscription expiry; backend mutations still require active RFQ entitlement. No new provider, environment variable, dependency or payment integration is introduced.

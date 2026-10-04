@@ -46,6 +46,8 @@ model User {
   rfqMessages                RfqMessage[]
   rfqEvents                  RfqEvent[]
   rfqEmailDeliveries         RfqEmailDelivery[]
+  salesEvents                SalesEvent[]
+  recordedSales              SaleRecord[]
 
   @@index([status])
   @@map("users")
@@ -334,24 +336,25 @@ model Rfq {
 }
 
 model RfqRecipient {
-  id             String           @id @default(uuid())
+  id             String            @id @default(uuid())
   rfqId          String
-  rfq            Rfq              @relation(fields: [rfqId], references: [id], onDelete: Restrict)
+  rfq            Rfq               @relation(fields: [rfqId], references: [id], onDelete: Restrict)
   recipientId    String
-  recipient      User             @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+  recipient      User              @relation(fields: [recipientId], references: [id], onDelete: Restrict)
   recipientRole  RfqRecipientRole
-  leadStatus     LeadStatus       @default(NEW)
+  leadStatus     LeadStatus        @default(NEW)
   routingReason  RfqRoutingReason
-  routedAt       DateTime         @default(now())
+  routedAt       DateTime          @default(now())
   viewedAt       DateTime?
   respondedAt    DateTime?
   removedAt      DateTime?
   quotaMonth     DateTime?
   reminderSentAt DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
   quotes         RfqQuote[]
   messages       RfqMessage[]
+  opportunity    SalesOpportunity?
 
   @@unique([rfqId, recipientId])
   @@unique([id, rfqId])
@@ -376,7 +379,9 @@ model RfqQuote {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   attachments  RfqQuoteAttachment[]
+  sale         SaleRecord?
 
+  @@unique([id, recipientId])
   @@index([rfqId, status])
   @@index([recipientId, createdAt])
   @@map("rfq_quotes")
@@ -463,4 +468,71 @@ model RfqEmailDelivery {
   @@unique([eventId, userId])
   @@index([status, createdAt])
   @@map("rfq_email_deliveries")
+}
+
+enum SalesStage {
+  NEW
+  QUALIFIED
+  QUOTED
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum SaleStatus {
+  RECORDED
+  COMPLETED
+  CANCELLED
+}
+
+model SalesOpportunity {
+  id            String       @id @default(uuid())
+  recipientId   String       @unique
+  recipient     RfqRecipient @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+  stage         SalesStage   @default(NEW)
+  internalNotes String       @default("") @db.VarChar(5000)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  events        SalesEvent[]
+  sale          SaleRecord?
+
+  @@unique([id, recipientId])
+  @@index([stage, updatedAt, id])
+  @@map("sales_opportunities")
+}
+
+model SaleRecord {
+  id                 String           @id @default(uuid())
+  opportunityId      String           @unique
+  recipientId        String
+  opportunity        SalesOpportunity @relation(fields: [opportunityId, recipientId], references: [id, recipientId], onDelete: Restrict)
+  acceptedQuoteId    String           @unique
+  acceptedQuote      RfqQuote         @relation(fields: [acceptedQuoteId, recipientId], references: [id, recipientId], onDelete: Restrict)
+  status             SaleStatus       @default(RECORDED)
+  recordedById       String
+  recordedBy         User             @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  cancellationReason String?          @db.VarChar(2000)
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([opportunityId, recipientId])
+  @@unique([acceptedQuoteId, recipientId])
+  @@index([status, createdAt, id])
+  @@map("sale_records")
+}
+
+model SalesEvent {
+  id            String           @id @default(uuid())
+  opportunityId String
+  opportunity   SalesOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+  actorId       String?
+  actor         User?            @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  eventType     String           @db.VarChar(100)
+  metadata      Json
+  createdAt     DateTime         @default(now())
+
+  @@index([opportunityId, createdAt, id])
+  @@map("sales_events")
 }

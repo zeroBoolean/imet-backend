@@ -640,6 +640,15 @@ test('RFQ routing, privacy, caps, quote races, messages, contact gating, expiry 
     throw error;
   } finally {
     try {
+      await prisma.salesEvent.deleteMany({
+        where: { opportunity: { recipient: { rfqId: { in: rfqs } } } },
+      });
+      await prisma.saleRecord.deleteMany({
+        where: { opportunity: { recipient: { rfqId: { in: rfqs } } } },
+      });
+      await prisma.salesOpportunity.deleteMany({
+        where: { recipient: { rfqId: { in: rfqs } } },
+      });
       await prisma.rfqEmailDelivery.deleteMany({
         where: { event: { rfqId: { in: rfqs } } },
       });

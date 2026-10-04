@@ -1,3 +1,4 @@
+import { syncSalesForRfq } from '../sales/sales.sync.js';
 import type { QuoteQuery } from './rfq.validation.js';
 import { effectiveState } from '../subscription/subscription.entitlements.js';
 import { prisma } from '../../config/database.js';
@@ -74,6 +75,7 @@ export const leadService = {
         });
         await rfqEvent(tx, r.id, a.id, 'LEAD_VIEWED', { recipientId: id });
       }
+      await syncSalesForRfq(tx, r.id, a.id);
       return tx.rfqRecipient.findUniqueOrThrow({ where: { id } });
     }),
   async overview(q: Pick<QuoteQuery, 'page' | 'limit' | 'q'>) {

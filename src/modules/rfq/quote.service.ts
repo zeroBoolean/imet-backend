@@ -1,3 +1,4 @@
+import { syncSalesForRfq } from '../sales/sales.sync.js';
 import { prisma } from '../../config/database.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { databaseMutation } from '../../utils/databaseMutation.js';
@@ -18,6 +19,7 @@ import type { Prisma } from '../../generated/client.js';
 export async function responseEntitlement(
   tx: Prisma.TransactionClient,
   userId: string,
+  lock = true,
 ) {
   const user = await tx.user.findUnique({
     where: { id: userId },
@@ -32,7 +34,13 @@ export async function responseEntitlement(
     throw new AppError('Active account required', 403);
   if (user.assignedRole.some((r) => r.role === 'SALES_PERSON')) return;
   if (!user.supplier) throw new AppError('Supplier profile required', 403);
-  const s = await lockSupplier(tx, user.supplier.id);
+  const s = lock
+    ? await lockSupplier(tx, user.supplier.id)
+    : await tx.supplier.findUnique({
+        where: { id: user.supplier.id },
+        include: { subscriptions: { where: { isCurrent: true } } },
+      });
+  if (!s) throw new AppError('Supplier profile required', 403);
   const t = s.subscriptions[0];
   if (
     s.status !== 'APPROVED' ||
@@ -97,6 +105,7 @@ export const quoteService = {
             where: { id: rfqId },
             data: { updatedAt: touch(r.updatedAt) },
           });
+        await syncSalesForRfq(tx, rfqId, a.id);
         return quote;
       }),
     ),
@@ -223,10 +232,12 @@ export const quoteService = {
             [action === 'REJECTED' ? old.recipient.recipientId : r.buyerId],
           );
         }
-        return tx.rfqQuote.update({
+        const result = await tx.rfqQuote.update({
           where: { id },
           data: { status: action, updatedAt: touch(quote.updatedAt) },
         });
+        await syncSalesForRfq(tx, r.id, a.id);
+        return result;
       }),
     ),
   async list(a: Actor, q: QuoteQuery) {
