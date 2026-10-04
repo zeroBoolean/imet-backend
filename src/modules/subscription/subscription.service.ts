@@ -4,6 +4,27 @@ import { databaseMutation, nextVersion } from '../../utils/databaseMutation.js';
 import { effectiveState, lockSupplier } from './subscription.entitlements.js';
 import type { PlanInput } from './subscription.validation.js';
 export const subscriptionService = {
+  publicPlans: () =>
+    prisma.subscriptionPlan.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        eligibleTypes: true,
+        durationDays: true,
+        price: true,
+        currency: true,
+        listingLimit: true,
+        imageLimit: true,
+        specificationLimit: true,
+        canPublishMachinery: true,
+        rfqEnabled: true,
+        leadLimitPerMonth: true,
+        canRevealContacts: true,
+        visibility: true,
+      },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    }),
   plans: () =>
     prisma.subscriptionPlan.findMany({
       orderBy: [{ name: 'asc' }, { id: 'asc' }],

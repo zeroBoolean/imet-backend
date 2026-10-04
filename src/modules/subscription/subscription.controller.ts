@@ -2,6 +2,13 @@ import catchAsync from '../../utils/asyncHandler.js';
 import ResponseHandler from '../../utils/response.js';
 import { subscriptionService as service } from './subscription.service.js';
 export const subscriptionController = {
+  publicPlans: catchAsync(async (_req, res) => {
+    ResponseHandler.ok(
+      res,
+      'Active supplier plans',
+      await service.publicPlans(),
+    );
+  }),
   plans: catchAsync(async (_req, res) => {
     ResponseHandler.send(res, 200, 'Subscription plans', await service.plans());
   }),

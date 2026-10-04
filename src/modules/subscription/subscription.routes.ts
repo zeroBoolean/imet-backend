@@ -9,3 +9,6 @@ SubscriptionAdminRoutes.get('/plans', c.plans);
 SubscriptionAdminRoutes.post('/plans', validate(s.planCreate), c.createPlan);
 SubscriptionAdminRoutes.put('/plans/:id', validate(s.planUpdate), c.updatePlan);
 SubscriptionAdminRoutes.put('/:id', validate(s.update), c.update);
+
+export const SubscriptionPublicRoutes = Router();
+SubscriptionPublicRoutes.get('/plans', c.publicPlans);

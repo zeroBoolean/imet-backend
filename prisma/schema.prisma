@@ -48,6 +48,8 @@ model User {
   rfqEmailDeliveries         RfqEmailDelivery[]
   salesEvents                SalesEvent[]
   recordedSales              SaleRecord[]
+  authoredReviews            Review[]             @relation("ReviewAuthor")
+  moderatedReviews           Review[]             @relation("ReviewModerator")
 
   @@index([status])
   @@map("users")
@@ -92,6 +94,7 @@ model MachineCategory {
 }
 
 model Machine {
+  reviews        Review[]
   id             String                 @id @default(uuid())
   name           String                 @db.VarChar(200)
   slug           String                 @unique @db.VarChar(220)
@@ -165,6 +168,7 @@ enum MarketplaceVisibility {
 }
 
 model Supplier {
+  reviews            Review[]
   id                 String                 @id @default(uuid())
   userId             String                 @unique
   user               User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -502,6 +506,7 @@ model SalesOpportunity {
 }
 
 model SaleRecord {
+  reviews            Review[]
   id                 String           @id @default(uuid())
   opportunityId      String           @unique
   recipientId        String
@@ -535,4 +540,46 @@ model SalesEvent {
 
   @@index([opportunityId, createdAt, id])
   @@map("sales_events")
+}
+
+enum ReviewTarget {
+  MACHINERY
+  SUPPLIER
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+  HIDDEN
+  WITHDRAWN
+}
+
+model Review {
+  id             String       @id @default(uuid())
+  saleId         String
+  sale           SaleRecord   @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  authorId       String
+  author         User         @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  target         ReviewTarget
+  machineId      String?
+  machine        Machine?     @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  supplierId     String?
+  supplier       Supplier?    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  rating         Int
+  body           String       @db.VarChar(5000)
+  status         ReviewStatus @default(PENDING)
+  moderationNote String?      @db.VarChar(2000)
+  moderatedById  String?
+  moderatedBy    User?        @relation("ReviewModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderatedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([saleId, target])
+  @@index([authorId, createdAt, id])
+  @@index([status, createdAt, id])
+  @@index([machineId, status, createdAt, id])
+  @@index([supplierId, status, createdAt, id])
+  @@map("reviews")
 }

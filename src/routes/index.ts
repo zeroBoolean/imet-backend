@@ -1,4 +1,9 @@
 import {
+  ReviewRoutes,
+  ReviewAdminRoutes,
+} from '../modules/review/review.routes.js';
+import { SubscriptionPublicRoutes } from '../modules/subscription/subscription.routes.js';
+import {
   SalesRoutes,
   SalesAdminRoutes,
 } from '../modules/sales/sales.routes.js';
@@ -25,6 +30,9 @@ import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use('/reviews', ReviewRoutes);
+router.use('/admin/reviews', ReviewAdminRoutes);
+router.use('/subscriptions', SubscriptionPublicRoutes);
 router.use('/sales', SalesRoutes);
 router.use('/admin/sales', SalesAdminRoutes);
 router.use(RfqAttachmentRoutes);

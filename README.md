@@ -82,3 +82,7 @@ RFQ lifecycle, recipient routing, private quotes/messages, subscription lead cap
 ## Milestone 6
 
 Private recipient-owned sales pipelines, manual records from accepted M5 quotes, final completion/cancellation, buyer read-only purchases and admin oversight are documented in [docs/milestone-6.md](docs/milestone-6.md). Apply the additive migration using `npm run db:deploy` before starting the matching frontend. Supplier history survives subscription expiry; backend mutations still require active RFQ entitlement. No new provider, environment variable, dependency or payment integration is introduced.
+
+## Milestone 7
+
+Completed-sale buyer reviews, admin approval/moderation, public ratings and a homepage driven by current catalogue/supplier/plan/review data are documented in [docs/milestone-7.md](docs/milestone-7.md). Apply the additive review migration with `npm run db:deploy`. No new provider, dependency or environment variable is required. The database test files now run sequentially while concurrent API race tests remain enabled.
