@@ -74,3 +74,7 @@ The `milestone-3` branch adds admin-only catalogue management APIs. See [Milesto
 ## Milestone 4
 
 The `milestone-4` branch adds supplier applications/admin approval, public supplier profiles, admin-defined plans, manual subscription terms/history and backend-enforced supplier machinery entitlements. Apply the additive migration with `npm run db:generate` and `npm run db:deploy`. Existing environments must set `PUBLIC_SIGNUP_ROLE=BUYER` for registration and retain the M1 Resend/Redis worker configuration for email verification. See [Milestone 4](docs/milestone-4.md) for setup, routes, privacy, quota and renewal rules. No payment processing is included.
+
+## Milestone 5
+
+RFQ lifecycle, recipient routing, private quotes/messages, subscription lead caps, contact gating, admin intervention, private Bunny attachments and BullMQ email/expiry jobs are documented in [docs/milestone-5.md](docs/milestone-5.md). Run both the email and RFQ workers. Live transfer/delivery requires secure provider credentials.

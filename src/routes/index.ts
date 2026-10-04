@@ -1,3 +1,12 @@
+import { RfqAttachmentRoutes } from '../modules/rfq/rfqAttachment.routes.js';
+import {
+  RfqOptionRoutes,
+  RfqRoutes,
+  QuoteRoutes,
+  LeadRoutes,
+  RfqAdminRoutes,
+  LeadAdminRoutes,
+} from '../modules/rfq/rfq.routes.js';
 import {
   SupplierRoutes,
   SupplierAdminRoutes,
@@ -12,6 +21,13 @@ import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use(RfqAttachmentRoutes);
+router.use('/rfq-options', RfqOptionRoutes);
+router.use('/rfqs', RfqRoutes);
+router.use('/quotes', QuoteRoutes);
+router.use('/leads', LeadRoutes);
+router.use('/admin/rfqs', RfqAdminRoutes);
+router.use('/admin/leads', LeadAdminRoutes);
 router.use('/supplier/catalogue', CatalogueSupplierRoutes);
 router.use('/supplier', SupplierRoutes);
 router.use('/suppliers', SupplierPublicRoutes);

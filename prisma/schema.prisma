@@ -39,6 +39,13 @@ model User {
   supplier                   Supplier?
   assignedRole               UserRoleAssignment[]
   sessions                   UserSession[]
+  rfqs                       Rfq[]                @relation("RfqBuyer")
+  rfqRecipients              RfqRecipient[]
+  rfqUploads                 RfqAttachment[]
+  quoteUploads               RfqQuoteAttachment[]
+  rfqMessages                RfqMessage[]
+  rfqEvents                  RfqEvent[]
+  rfqEmailDeliveries         RfqEmailDelivery[]
 
   @@index([status])
   @@map("users")
@@ -77,6 +84,7 @@ model MachineCategory {
   name     String    @db.VarChar(100)
   slug     String    @unique @db.VarChar(120)
   machines Machine[]
+  rfqs     Rfq[]
 
   @@map("machine_categories")
 }
@@ -95,6 +103,7 @@ model Machine {
   status         MachineStatus          @default(DRAFT)
   images         MachineImage[]
   specifications MachineSpecification[]
+  rfqs           Rfq[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 
@@ -173,6 +182,7 @@ model Supplier {
   status             SupplierStatus         @default(PENDING)
   isVerified         Boolean                @default(false)
   marketplaceVisible Boolean                @default(false)
+  contactBlocked     Boolean                @default(false)
   reviewNote         String?                @db.VarChar(2000)
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
@@ -193,6 +203,9 @@ model SubscriptionPlan {
   listingLimit        Int
   imageLimit          Int
   specificationLimit  Int
+  rfqEnabled          Boolean                @default(false)
+  leadLimitPerMonth   Int?                   @default(0)
+  canRevealContacts   Boolean                @default(false)
   canPublishMachinery Boolean
   visibility          MarketplaceVisibility
   isActive            Boolean                @default(true)
@@ -221,6 +234,9 @@ model SupplierSubscription {
   listingLimit        Int
   imageLimit          Int
   specificationLimit  Int
+  rfqEnabled          Boolean               @default(false)
+  leadLimitPerMonth   Int?                  @default(0)
+  canRevealContacts   Boolean               @default(false)
   canPublishMachinery Boolean
   visibility          MarketplaceVisibility
   createdAt           DateTime              @default(now())
@@ -228,4 +244,223 @@ model SupplierSubscription {
 
   @@index([supplierId, isCurrent, state, startsAt, endsAt])
   @@map("supplier_subscriptions")
+}
+
+// RFQ prices and contacts are private; services must use role-aware projections.
+enum RfqStatus {
+  DRAFT
+  SUBMITTED
+  ROUTED
+  QUOTED
+  ACCEPTED
+  CLOSED
+  CANCELLED
+  EXPIRED
+  DECLINED
+}
+
+enum LeadStatus {
+  NEW
+  VIEWED
+  QUOTED
+  DECLINED
+  CLOSED
+}
+
+enum RfqRecipientRole {
+  SUPPLIER
+  MANUFACTURER
+  SALESPERSON
+  SELLER
+}
+
+enum RfqRoutingReason {
+  AUTO
+  MANUAL
+  ADMIN_OVERRIDE
+}
+
+enum RfqQuoteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum RfqEmailStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+}
+
+model Rfq {
+  id                String           @id @default(uuid())
+  sequence          Int              @unique @default(autoincrement())
+  rfqNumber         String           @unique @db.VarChar(40)
+  buyerId           String
+  buyer             User             @relation("RfqBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  machineId         String?
+  machine           Machine?         @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  categoryId        String?
+  category          MachineCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title             String           @db.VarChar(200)
+  description       String
+  quantity          Decimal          @db.Decimal(14, 3)
+  unit              String           @db.VarChar(40)
+  targetBudget      Decimal?         @db.Decimal(16, 2)
+  budgetCurrency    String?          @db.VarChar(3)
+  deliveryLocation  String           @db.VarChar(2000)
+  deliveryTimeline  String           @db.VarChar(500)
+  supplierCountry   String?          @db.VarChar(100)
+  preferredLanguage String           @default("en") @db.VarChar(2)
+  status            RfqStatus        @default(DRAFT)
+  expiresAt         DateTime?
+  submittedAt       DateTime?
+  isFlagged         Boolean          @default(false)
+  flagReason        String?          @db.VarChar(2000)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  attachments       RfqAttachment[]
+  recipients        RfqRecipient[]
+  quotes            RfqQuote[]
+  messages          RfqMessage[]
+  events            RfqEvent[]
+
+  @@index([buyerId, createdAt, id])
+  @@index([status, expiresAt])
+  @@index([categoryId, createdAt])
+  @@map("rfqs")
+}
+
+model RfqRecipient {
+  id             String           @id @default(uuid())
+  rfqId          String
+  rfq            Rfq              @relation(fields: [rfqId], references: [id], onDelete: Restrict)
+  recipientId    String
+  recipient      User             @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+  recipientRole  RfqRecipientRole
+  leadStatus     LeadStatus       @default(NEW)
+  routingReason  RfqRoutingReason
+  routedAt       DateTime         @default(now())
+  viewedAt       DateTime?
+  respondedAt    DateTime?
+  removedAt      DateTime?
+  quotaMonth     DateTime?
+  reminderSentAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  quotes         RfqQuote[]
+  messages       RfqMessage[]
+
+  @@unique([rfqId, recipientId])
+  @@unique([id, rfqId])
+  @@index([recipientId, leadStatus, routedAt])
+  @@index([recipientId, quotaMonth])
+  @@map("rfq_recipients")
+}
+
+model RfqQuote {
+  id           String               @id @default(uuid())
+  rfqId        String
+  rfq          Rfq                  @relation(fields: [rfqId], references: [id], onDelete: Restrict)
+  recipientId  String
+  recipient    RfqRecipient         @relation(fields: [recipientId, rfqId], references: [id, rfqId], onDelete: Restrict)
+  unitPrice    Decimal              @db.Decimal(16, 2)
+  currency     String               @db.VarChar(3)
+  moq          Decimal              @db.Decimal(14, 3)
+  leadTimeDays Int
+  validUntil   DateTime
+  notes        String
+  status       RfqQuoteStatus       @default(PENDING)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  attachments  RfqQuoteAttachment[]
+
+  @@index([rfqId, status])
+  @@index([recipientId, createdAt])
+  @@map("rfq_quotes")
+}
+
+model RfqAttachment {
+  id           String   @id @default(uuid())
+  rfqId        String
+  rfq          Rfq      @relation(fields: [rfqId], references: [id], onDelete: Restrict)
+  storageKey   String   @unique
+  fileName     String   @db.VarChar(250)
+  fileType     String   @db.VarChar(100)
+  fileSize     Int
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
+
+  @@index([rfqId])
+  @@map("rfq_attachments")
+}
+
+model RfqQuoteAttachment {
+  id           String   @id @default(uuid())
+  quoteId      String
+  quote        RfqQuote @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  storageKey   String   @unique
+  fileName     String   @db.VarChar(250)
+  fileType     String   @db.VarChar(100)
+  fileSize     Int
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
+
+  @@index([quoteId])
+  @@map("rfq_quote_attachments")
+}
+
+model RfqMessage {
+  id          String       @id @default(uuid())
+  rfqId       String
+  rfq         Rfq          @relation(fields: [rfqId], references: [id], onDelete: Restrict)
+  recipientId String
+  recipient   RfqRecipient @relation(fields: [recipientId, rfqId], references: [id, rfqId], onDelete: Restrict)
+  senderId    String
+  sender      User         @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  body        String
+  createdAt   DateTime     @default(now())
+  readAt      DateTime?
+
+  @@index([recipientId, createdAt, id])
+  @@map("rfq_messages")
+}
+
+model RfqEvent {
+  id         String             @id @default(uuid())
+  rfqId      String
+  rfq        Rfq                @relation(fields: [rfqId], references: [id], onDelete: Restrict)
+  actorId    String?
+  actor      User?              @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  eventType  String             @db.VarChar(100)
+  metadata   Json
+  createdAt  DateTime           @default(now())
+  deliveries RfqEmailDelivery[]
+
+  @@index([rfqId, createdAt, id])
+  @@map("rfq_events")
+}
+
+// Durable email intents connect committed audit events to the existing email queue.
+model RfqEmailDelivery {
+  id        String         @id @default(uuid())
+  eventId   String
+  event     RfqEvent       @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status    RfqEmailStatus @default(PENDING)
+  attempts  Int            @default(0)
+  lastError String?        @db.VarChar(500)
+  queuedAt  DateTime?
+  sentAt    DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([status, createdAt])
+  @@map("rfq_email_deliveries")
 }

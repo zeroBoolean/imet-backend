@@ -5,6 +5,7 @@ export interface EmailJob {
   to: string;
   subject: string;
   html: string;
+  rfqDeliveryId?: string;
 }
 let queue: Queue<EmailJob> | undefined;
 export const getEmailQueue = () =>

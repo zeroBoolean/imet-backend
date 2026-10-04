@@ -12,7 +12,12 @@ export class ResendProvider {
   }
   async send(email: EmailJob, id: string) {
     const { error, data } = await this.client.emails.send(
-      { ...email, from: config.RESEND_FROM_EMAIL!, to: [email.to] },
+      {
+        subject: email.subject,
+        html: email.html,
+        from: config.RESEND_FROM_EMAIL!,
+        to: [email.to],
+      },
       { idempotencyKey: id },
     );
     if (error || !data?.id)

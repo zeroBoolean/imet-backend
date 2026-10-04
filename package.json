@@ -22,7 +22,9 @@
     "worker": "tsx src/emails/worker.ts",
     "worker:prod": "node dist/emails/worker.js",
     "admin:create": "tsx scripts/create-admin.ts",
-    "env:init": "node scripts/init-local-env.mjs"
+    "env:init": "node scripts/init-local-env.mjs",
+    "worker:rfq": "tsx src/modules/rfq/rfq.worker.ts",
+    "worker:rfq:prod": "node dist/modules/rfq/rfq.worker.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
@@ -33,9 +35,11 @@
     "dotenv": "17.2.3",
     "express": "5.2.1",
     "express-rate-limit": "8.7.0",
+    "file-type": "^21.3.4",
     "helmet": "8.1.0",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
     "pg": "8.17.2",
     "resend": "^6.32.0",
     "zod": "4.3.6"
@@ -45,6 +49,7 @@
     "@types/cors": "^2",
     "@types/express": "^5",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.3.0",
     "@types/node": "^24",
     "@types/pg": "^8",
     "eslint": "^9",
