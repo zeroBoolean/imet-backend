@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { fileTypeFromBuffer } from 'file-type';
 import { prisma } from '../../config/database.js';
-import { config } from '../../config/env.js';
+import { bunnyStorage } from '../../services/bunnyStorage.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { rfqAccess, lockRfq, type Actor } from './rfq.access.js';
 import { rfqEvent } from './rfqEvent.service.js';
@@ -19,31 +19,15 @@ export async function validateAttachment(buffer: Buffer) {
     );
   return type;
 }
+// Keep the RFQ-only key boundary: catalogue delivery never serves this namespace.
 export const storageRequest = async (
   key: string,
   method: 'PUT' | 'GET' | 'DELETE',
   body?: Buffer,
 ) => {
-  if (!config.BUNNY_STORAGE_ACCESS_KEY || !config.BUNNY_STORAGE_ZONE)
-    throw new AppError('Private attachment storage is not configured', 503);
   if (!/^rfq\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|png|jpg)$/.test(key))
     throw new AppError('Invalid storage reference', 500);
-  const response = await fetch(
-    `https://${config.BUNNY_STORAGE_HOST}/${config.BUNNY_STORAGE_ZONE}/${key}`,
-    {
-      method,
-      headers: {
-        AccessKey: config.BUNNY_STORAGE_ACCESS_KEY,
-        'Content-Type': 'application/octet-stream',
-      },
-      ...(body ? { body: new Uint8Array(body) } : {}),
-      signal: AbortSignal.timeout(15000),
-      redirect: 'error',
-    },
-  );
-  if (!response.ok)
-    throw new AppError('Attachment storage is temporarily unavailable', 502);
-  return response;
+  return bunnyStorage.request(key, method, body);
 };
 export const rfqAttachmentService = {
   async upload(a: Actor, id: string, file: Express.Multer.File, quote = false) {

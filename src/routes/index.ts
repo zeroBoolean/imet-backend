@@ -1,3 +1,4 @@
+import { MediaRoutes } from '../modules/media/media.routes.js';
 import {
   TranslationRoutes,
   TranslationAdminRoutes,
@@ -34,6 +35,7 @@ import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use(MediaRoutes);
 router.use('/translations', TranslationRoutes);
 router.use('/admin/translations', TranslationAdminRoutes);
 router.use('/reviews', ReviewRoutes);

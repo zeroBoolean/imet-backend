@@ -233,6 +233,11 @@ export const catalogueAdminService = {
             });
           else await lockSupplier(tx, current.supplierId);
         }
+        if (await tx.machineMedia.count({ where: { machineId: id } }))
+          throw new AppError(
+            'Remove advanced media before deleting this machine',
+            409,
+          );
         const deleted = await tx.machine.deleteMany({
           where: { id, updatedAt: new Date(updatedAt) },
         });

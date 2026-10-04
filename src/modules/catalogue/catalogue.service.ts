@@ -1,3 +1,4 @@
+import { mediaSelect } from '../media/media.service.js';
 import { publicMachineWhere } from '../subscription/subscription.entitlements.js';
 import { prisma } from '../../config/database.js';
 import type { Prisma } from '../../generated/client.js';
@@ -71,6 +72,11 @@ export const catalogueService = {
       where: { slug, ...publicMachineWhere() },
       select: {
         ...publicSelect,
+        media: {
+          where: { state: 'ACTIVE' },
+          orderBy: [{ position: 'asc' }, { id: 'asc' }],
+          select: mediaSelect,
+        },
         specifications: {
           orderBy: [{ position: 'asc' }, { id: 'asc' }],
           select: { id: true, label: true, value: true },

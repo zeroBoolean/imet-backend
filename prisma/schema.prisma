@@ -107,6 +107,7 @@ model Machine {
   categoryId     String
   category       MachineCategory        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   status         MachineStatus          @default(DRAFT)
+  media          MachineMedia[]
   images         MachineImage[]
   specifications MachineSpecification[]
   rfqs           Rfq[]
@@ -644,4 +645,37 @@ model TranslationUsage {
   requests Int      @default(0)
 
   @@map("translation_usage")
+}
+
+// Images remain backward compatible; advanced files use the shared catalogue media relation.
+enum MediaType {
+  IMAGE
+  VIDEO
+  MODEL_3D
+  VIEW_360
+}
+
+enum MediaState {
+  UPLOADING
+  ACTIVE
+  DELETING
+}
+
+model MachineMedia {
+  id         String     @id @default(uuid())
+  machineId  String
+  machine    Machine    @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  type       MediaType
+  state      MediaState @default(ACTIVE)
+  title      String     @db.VarChar(150)
+  storageKey String     @unique
+  fileName   String     @db.VarChar(250)
+  fileType   String     @db.VarChar(100)
+  fileSize   Int
+  sha256     String     @db.VarChar(64)
+  position   Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([machineId, state, position, id])
+  @@map("machine_media")
 }
