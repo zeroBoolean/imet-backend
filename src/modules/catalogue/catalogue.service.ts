@@ -73,7 +73,7 @@ export const catalogueService = {
         ...publicSelect,
         specifications: {
           orderBy: [{ position: 'asc' }, { id: 'asc' }],
-          select: { label: true, value: true },
+          select: { id: true, label: true, value: true },
         },
       },
     });

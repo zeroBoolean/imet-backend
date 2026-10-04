@@ -94,6 +94,7 @@ model MachineCategory {
 }
 
 model Machine {
+  translations   ContentTranslation[]
   reviews        Review[]
   id             String                 @id @default(uuid())
   name           String                 @db.VarChar(200)
@@ -130,12 +131,13 @@ model MachineImage {
 }
 
 model MachineSpecification {
-  id        String  @id @default(uuid())
-  machineId String
-  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
-  label     String  @db.VarChar(100)
-  value     String  @db.VarChar(500)
-  position  Int     @default(0)
+  translations ContentTranslation[]
+  id           String               @id @default(uuid())
+  machineId    String
+  machine      Machine              @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  label        String               @db.VarChar(100)
+  value        String               @db.VarChar(500)
+  position     Int                  @default(0)
 
   @@index([machineId, position])
   @@map("machine_specifications")
@@ -168,6 +170,7 @@ enum MarketplaceVisibility {
 }
 
 model Supplier {
+  translations       ContentTranslation[]
   reviews            Review[]
   id                 String                 @id @default(uuid())
   userId             String                 @unique
@@ -556,25 +559,26 @@ enum ReviewStatus {
 }
 
 model Review {
-  id             String       @id @default(uuid())
+  translations   ContentTranslation[]
+  id             String               @id @default(uuid())
   saleId         String
-  sale           SaleRecord   @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  sale           SaleRecord           @relation(fields: [saleId], references: [id], onDelete: Restrict)
   authorId       String
-  author         User         @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  author         User                 @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   target         ReviewTarget
   machineId      String?
-  machine        Machine?     @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  machine        Machine?             @relation(fields: [machineId], references: [id], onDelete: Restrict)
   supplierId     String?
-  supplier       Supplier?    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplier       Supplier?            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   rating         Int
-  body           String       @db.VarChar(5000)
-  status         ReviewStatus @default(PENDING)
-  moderationNote String?      @db.VarChar(2000)
+  body           String               @db.VarChar(5000)
+  status         ReviewStatus         @default(PENDING)
+  moderationNote String?              @db.VarChar(2000)
   moderatedById  String?
-  moderatedBy    User?        @relation("ReviewModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderatedBy    User?                @relation("ReviewModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   moderatedAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   @@unique([saleId, target])
   @@index([authorId, createdAt, id])
@@ -582,4 +586,62 @@ model Review {
   @@index([machineId, status, createdAt, id])
   @@index([supplierId, status, createdAt, id])
   @@map("reviews")
+}
+
+// Originals stay in their existing resource; each cache row translates one field.
+enum TranslationLanguage {
+  en
+  bn
+  zh
+}
+
+enum TranslationField {
+  NAME
+  DESCRIPTION
+  LABEL
+  BODY
+}
+
+enum TranslationStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model ContentTranslation {
+  id              String                @id @default(uuid())
+  cacheKey        String                @unique @db.VarChar(160)
+  machineId       String?
+  machine         Machine?              @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  specificationId String?
+  specification   MachineSpecification? @relation(fields: [specificationId], references: [id], onDelete: Cascade)
+  supplierId      String?
+  supplier        Supplier?             @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  reviewId        String?
+  review          Review?               @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  field           TranslationField
+  sourceLanguage  TranslationLanguage
+  targetLanguage  TranslationLanguage
+  sourceHash      String                @db.VarChar(64)
+  translatedText  String?
+  status          TranslationStatus
+  claimId         String?
+  processingUntil DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([machineId, field, targetLanguage])
+  @@index([specificationId, targetLanguage])
+  @@index([supplierId, targetLanguage])
+  @@index([reviewId, targetLanguage])
+  @@index([status, processingUntil])
+  @@map("content_translations")
+}
+
+// Durable global call allowance; a restart must not reset provider usage limits.
+model TranslationUsage {
+  day      DateTime @id @db.Date
+  requests Int      @default(0)
+
+  @@map("translation_usage")
 }

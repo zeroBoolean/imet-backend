@@ -132,10 +132,23 @@ test('details expose ordered media and specifications while drafts and unknown m
   const response = await fetch(`${base}/machines/${key}-0`);
   assert.equal(response.status, 200);
   const machine = (await response.json()).data;
-  assert.deepEqual(machine.specifications, [
-    { label: 'Capacity', value: '100 units/hour' },
-    { label: 'Power', value: '5 kW' },
-  ]);
+  assert.ok(
+    machine.specifications.every((s: { id: string }) =>
+      /^[0-9a-f-]{36}$/i.test(s.id),
+    ),
+  );
+  assert.deepEqual(
+    machine.specifications.map(
+      ({ label, value }: { label: string; value: string }) => ({
+        label,
+        value,
+      }),
+    ),
+    [
+      { label: 'Capacity', value: '100 units/hour' },
+      { label: 'Power', value: '5 kW' },
+    ],
+  );
   assert.equal(machine.images.length, 2);
   for (const slug of [`${key}-draft`, `${key}-missing`]) {
     const missing = await fetch(`${base}/machines/${slug}`);

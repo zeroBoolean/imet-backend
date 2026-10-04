@@ -212,7 +212,12 @@ test('admin catalogue authorization, validation, publication, atomic edits, conf
     assert.equal(publicMachine.status, 200);
     assert.deepEqual(publicMachine.body.data.images, publish.images);
     assert.deepEqual(
-      publicMachine.body.data.specifications,
+      publicMachine.body.data.specifications.map(
+        ({ label, value }: { label: string; value: string }) => ({
+          label,
+          value,
+        }),
+      ),
       publish.specifications,
     );
     assert.equal(

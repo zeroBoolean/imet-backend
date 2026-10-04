@@ -86,3 +86,7 @@ Private recipient-owned sales pipelines, manual records from accepted M5 quotes,
 ## Milestone 7
 
 Completed-sale buyer reviews, admin approval/moderation, public ratings and a homepage driven by current catalogue/supplier/plan/review data are documented in [docs/milestone-7.md](docs/milestone-7.md). Apply the additive review migration with `npm run db:deploy`. No new provider, dependency or environment variable is required. The database test files now run sequentially while concurrent API race tests remain enabled.
+
+## Milestone 8
+
+See [AI Translation](docs/milestone-8.md) for approved public content, admin generation, original-safe caching, OpenAI configuration and deployment/test evidence. Apply the additive migration and configure `AI_TRANSLATION_API_KEY` securely on the server for live cross-language generation.

@@ -1,6 +1,29 @@
 import 'dotenv/config';
 import { z } from 'zod';
 const schema = z.object({
+  AI_TRANSLATION_API_KEY: z.string().optional(),
+  AI_TRANSLATION_MODEL: z
+    .string()
+    .regex(/^[a-zA-Z0-9._:-]{1,100}$/)
+    .default('gpt-4.1-mini'),
+  AI_TRANSLATION_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(60000)
+    .default(20000),
+  AI_TRANSLATION_MAX_CHARACTERS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(12000)
+    .default(6000),
+  AI_TRANSLATION_DAILY_LIMIT: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .default(50),
   RFQ_EXPIRY_DAYS: z.coerce.number().int().min(1).max(365).default(14),
   RFQ_REMINDER_DAYS: z.coerce.number().int().min(1).max(364).default(2),
   BUNNY_STORAGE_ZONE: z

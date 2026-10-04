@@ -1,4 +1,8 @@
 import {
+  TranslationRoutes,
+  TranslationAdminRoutes,
+} from '../modules/translation/translation.routes.js';
+import {
   ReviewRoutes,
   ReviewAdminRoutes,
 } from '../modules/review/review.routes.js';
@@ -30,6 +34,8 @@ import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use('/translations', TranslationRoutes);
+router.use('/admin/translations', TranslationAdminRoutes);
 router.use('/reviews', ReviewRoutes);
 router.use('/admin/reviews', ReviewAdminRoutes);
 router.use('/subscriptions', SubscriptionPublicRoutes);
