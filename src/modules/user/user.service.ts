@@ -1,3 +1,4 @@
+import { recordAudit } from '../audit/audit.record.js';
 import { prisma } from '../../config/database.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import type { UserRole, UserStatus } from '../../generated/enums.js';
@@ -99,6 +100,22 @@ export const userService = {
             where: { userId: id, revokedAt: null },
             data: { revokedAt: new Date() },
           });
+          await recordAudit(
+            tx,
+            actorId,
+            'USER_ACCESS_UPDATED',
+            'USER',
+            id,
+            Object.keys(data),
+            {
+              status: target.status,
+              roles: target.assignedRole.map((item) => item.role),
+            },
+            {
+              status: data.status ?? target.status,
+              roles: data.roles ?? target.assignedRole.map((item) => item.role),
+            },
+          );
         },
         { isolationLevel: 'Serializable' },
       );

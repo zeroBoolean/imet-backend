@@ -673,6 +673,7 @@ test('RFQ routing, privacy, caps, quote races, messages, contact gating, expiry 
       if (categoryId)
         await prisma.machineCategory.delete({ where: { id: categoryId } });
       await prisma.userSession.deleteMany({ where: { userId: { in: users } } });
+      await prisma.auditLog.deleteMany({ where: { actorId: { in: users } } });
       await prisma.user.deleteMany({ where: { id: { in: users } } });
     } finally {
       await new Promise<void>((resolve, reject) =>

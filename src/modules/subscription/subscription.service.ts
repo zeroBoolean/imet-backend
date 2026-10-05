@@ -1,3 +1,4 @@
+import { recordAudit } from '../audit/audit.record.js';
 import { prisma } from '../../config/database.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { databaseMutation, nextVersion } from '../../utils/databaseMutation.js';
@@ -42,11 +43,31 @@ export const subscriptionService = {
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
   },
-  createPlan: (data: PlanInput) =>
-    databaseMutation(() => prisma.subscriptionPlan.create({ data })),
-  updatePlan: (id: string, data: PlanInput & { updatedAt: string }) =>
+  createPlan: (data: PlanInput, actorId?: string) =>
     databaseMutation(() =>
       prisma.$transaction(async (tx) => {
+        const result = await tx.subscriptionPlan.create({ data });
+        await recordAudit(
+          tx,
+          actorId,
+          'SUBSCRIPTION_PLAN_CREATED',
+          'SUBSCRIPTION_PLAN',
+          result.id,
+          Object.keys(data),
+          {},
+          result,
+        );
+        return result;
+      }),
+    ),
+  updatePlan: (
+    id: string,
+    data: PlanInput & { updatedAt: string },
+    actorId?: string,
+  ) =>
+    databaseMutation(() =>
+      prisma.$transaction(async (tx) => {
+        const before = await tx.subscriptionPlan.findUnique({ where: { id } });
         const { updatedAt, ...fields } = data;
         const result = await tx.subscriptionPlan.updateMany({
           where: { id, updatedAt: new Date(updatedAt) },
@@ -57,7 +78,20 @@ export const subscriptionService = {
             throw new AppError('Plan not found', 404);
           throw new AppError('Plan changed. Reload before saving', 409);
         }
-        return tx.subscriptionPlan.findUniqueOrThrow({ where: { id } });
+        const resultPlan = await tx.subscriptionPlan.findUniqueOrThrow({
+          where: { id },
+        });
+        await recordAudit(
+          tx,
+          actorId,
+          'SUBSCRIPTION_PLAN_UPDATED',
+          'SUBSCRIPTION_PLAN',
+          id,
+          Object.keys(data),
+          before ?? {},
+          resultPlan,
+        );
+        return resultPlan;
       }),
     ),
   assign: (
@@ -70,6 +104,7 @@ export const subscriptionService = {
       endsAt: string;
       state: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
     },
+    actorId?: string,
   ) =>
     databaseMutation(() =>
       prisma.$transaction(async (tx) => {
@@ -147,6 +182,16 @@ export const subscriptionService = {
             visibility: plan.visibility,
           },
         });
+        await recordAudit(
+          tx,
+          actorId,
+          'SUBSCRIPTION_ASSIGNED',
+          'SUBSCRIPTION',
+          term.id,
+          ['planId', 'state', 'startsAt', 'endsAt'],
+          {},
+          term,
+        );
         return { ...term, effectiveStatus: effectiveState(term) };
       }),
     ),
@@ -158,6 +203,7 @@ export const subscriptionService = {
       state: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED';
       updatedAt: string;
     },
+    actorId?: string,
   ) =>
     databaseMutation(() =>
       prisma.$transaction(async (tx) => {
@@ -184,6 +230,16 @@ export const subscriptionService = {
         const term = await tx.supplierSubscription.findUniqueOrThrow({
           where: { id },
         });
+        await recordAudit(
+          tx,
+          actorId,
+          'SUBSCRIPTION_UPDATED',
+          'SUBSCRIPTION',
+          id,
+          Object.keys(data),
+          existing,
+          term,
+        );
         return { ...term, effectiveStatus: effectiveState(term) };
       }),
     ),

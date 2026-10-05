@@ -24,6 +24,7 @@ enum UserStatus {
 }
 
 model User {
+  auditLogs                  AuditLog[]
   customerTickets            ServiceTicket[]             @relation("TicketCustomer")
   assignedTickets            ServiceTicket[]             @relation("TicketAssignee")
   warrantyReviews            ServiceTicket[]             @relation("WarrantyReviewer")
@@ -464,6 +465,7 @@ model RfqEvent {
   deliveries RfqEmailDelivery[]
 
   @@index([rfqId, createdAt, id])
+  @@index([createdAt, id])
   @@map("rfq_events")
 }
 
@@ -557,6 +559,7 @@ model SalesEvent {
   createdAt     DateTime         @default(now())
 
   @@index([opportunityId, createdAt, id])
+  @@index([createdAt, id])
   @@map("sales_events")
 }
 
@@ -768,6 +771,7 @@ model ServiceTicketEvent {
   createdAt    DateTime                    @default(now())
 
   @@index([ticketId, createdAt, id])
+  @@index([createdAt, id])
   @@map("service_ticket_events")
 }
 
@@ -793,4 +797,31 @@ model NotificationEmailDelivery {
   @@unique([eventId, userId])
   @@index([status, createdAt, id])
   @@map("notification_email_deliveries")
+}
+
+enum AuditResourceType {
+  USER
+  CATEGORY
+  MACHINERY
+  SUPPLIER
+  SUBSCRIPTION_PLAN
+  SUBSCRIPTION
+  REVIEW
+}
+
+model AuditLog {
+  id           String            @id @default(uuid())
+  actorId      String
+  actor        User              @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action       String            @db.VarChar(80)
+  resourceType AuditResourceType
+  resourceId   String            @db.VarChar(100)
+  context      Json
+  createdAt    DateTime          @default(now())
+
+  @@index([createdAt, id])
+  @@index([actorId, createdAt, id])
+  @@index([resourceType, resourceId, createdAt, id])
+  @@index([action, createdAt, id])
+  @@map("audit_logs")
 }

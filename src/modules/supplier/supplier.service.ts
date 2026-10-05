@@ -1,3 +1,4 @@
+import { recordAudit } from '../audit/audit.record.js';
 import { prisma } from '../../config/database.js';
 import type { Prisma } from '../../generated/client.js';
 import { AppError } from '../../middleware/errorHandler.js';
@@ -170,6 +171,7 @@ export const supplierService = {
       reviewNote: string | null;
       updatedAt: string;
     },
+    actorId?: string,
   ) {
     return databaseMutation(() =>
       prisma.$transaction(async (tx) => {
@@ -199,15 +201,30 @@ export const supplierService = {
             data: { userId: supplier.userId, role: roleFor(supplier.type) },
           });
         }
-        return tx.supplier.update({
+        const result = await tx.supplier.update({
           where: { id },
           data: { ...fields, updatedAt: nextVersion(updatedAt) },
           include: ownInclude,
         });
+        await recordAudit(
+          tx,
+          actorId,
+          'SUPPLIER_ADMIN_UPDATED',
+          'SUPPLIER',
+          id,
+          Object.keys(data),
+          supplier,
+          result,
+        );
+        return result;
       }),
     );
   },
-  adminUpdate(id: string, data: ProfileInput & { updatedAt: string }) {
+  adminUpdate(
+    id: string,
+    data: ProfileInput & { updatedAt: string },
+    actorId?: string,
+  ) {
     return databaseMutation(() =>
       prisma.$transaction(async (tx) => {
         const supplier = await lockSupplier(tx, id);
@@ -225,7 +242,7 @@ export const supplierService = {
             data: { userId: supplier.userId, role: roleFor(data.type) },
           });
         }
-        return tx.supplier.update({
+        const result = await tx.supplier.update({
           where: { id },
           data: {
             ...fields,
@@ -234,6 +251,17 @@ export const supplierService = {
           },
           include: ownInclude,
         });
+        await recordAudit(
+          tx,
+          actorId,
+          'SUPPLIER_ADMIN_UPDATED',
+          'SUPPLIER',
+          id,
+          Object.keys(data),
+          supplier,
+          result,
+        );
+        return result;
       }),
     );
   },

@@ -492,6 +492,7 @@ test('M9 media authorization, entitlement, delivery integrity, fallback metadata
       await prisma.supplier.delete({ where: { id: supplierId } });
     }
     if (planId) await prisma.subscriptionPlan.delete({ where: { id: planId } });
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: users } } });
     await prisma.user.deleteMany({ where: { id: { in: users } } });
     await new Promise<void>((r) => server.close(() => r()));
     await disconnectDatabase();

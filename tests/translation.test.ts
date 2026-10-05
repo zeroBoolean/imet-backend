@@ -782,6 +782,7 @@ test('M8 resource-bound public translation, authorization, cache and cost contro
     if (planId) await prisma.subscriptionPlan.delete({ where: { id: planId } });
     if (categoryId)
       await prisma.machineCategory.delete({ where: { id: categoryId } });
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: users } } });
     await prisma.user.deleteMany({ where: { id: { in: users } } });
     await disconnectDatabase();
   }

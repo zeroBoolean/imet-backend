@@ -1,3 +1,4 @@
+import { recordAudit } from '../audit/audit.record.js';
 import { prisma } from '../../config/database.js';
 import type { Prisma, ReviewTarget } from '../../generated/client.js';
 import { AppError } from '../../middleware/errorHandler.js';
@@ -270,7 +271,7 @@ export const reviewService = {
           );
         if (old.status === data.status)
           throw new AppError('Review already has this status', 409);
-        return tx.review.update({
+        const result = await tx.review.update({
           where: { id },
           data: {
             status: data.status,
@@ -281,6 +282,17 @@ export const reviewService = {
           },
           include: privateInclude,
         });
+        await recordAudit(
+          tx,
+          a.id,
+          'REVIEW_MODERATED',
+          'REVIEW',
+          id,
+          ['status'],
+          old,
+          result,
+        );
+        return result;
       }),
     ),
   publicList: (q: PublicReviewQuery) =>

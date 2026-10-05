@@ -743,6 +743,7 @@ test('supplier approval, manual subscriptions, privacy, ownership, quota races, 
     await prisma.supplier.deleteMany({ where: { id: { in: supplierIds } } });
     await prisma.subscriptionPlan.deleteMany({ where: { id: { in: plans } } });
     await prisma.machineCategory.deleteMany({ where: { slug: key } });
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: users } } });
     await prisma.user.deleteMany({ where: { id: { in: users } } });
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await disconnectDatabase();

@@ -25,7 +25,7 @@ export const subscriptionController = {
       res,
       201,
       'Plan created',
-      await service.createPlan(res.locals.validated.body),
+      await service.createPlan(res.locals.validated.body, res.locals.auth.id),
     );
   }),
   updatePlan: catchAsync(async (_req, res) => {
@@ -36,6 +36,7 @@ export const subscriptionController = {
       await service.updatePlan(
         res.locals.validated.params.id,
         res.locals.validated.body,
+        res.locals.auth.id,
       ),
     );
   }),
@@ -47,6 +48,7 @@ export const subscriptionController = {
       await service.assign(
         res.locals.validated.params.id,
         res.locals.validated.body,
+        res.locals.auth.id,
       ),
     );
   }),
@@ -58,6 +60,7 @@ export const subscriptionController = {
       await service.update(
         res.locals.validated.params.id,
         res.locals.validated.body,
+        res.locals.auth.id,
       ),
     );
   }),

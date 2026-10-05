@@ -242,6 +242,7 @@ test('complete authentication flow, single-use tokens, rotation, revocation and 
       assert.equal(profile.status, 200);
       assert.equal((await profile.json()).data.displayName, 'Updated Buyer');
     } finally {
+      await prisma.auditLog.deleteMany({ where: { actorId: admin.id } });
       await prisma.user.delete({ where: { id: admin.id } });
     }
     const refreshed = await request('/refresh', {
@@ -355,6 +356,7 @@ test('complete authentication flow, single-use tokens, rotation, revocation and 
       'If this address is eligible, you will receive an email shortly.',
     );
   } finally {
+    await prisma.auditLog.deleteMany({ where: { actor: { email } } });
     await prisma.user.deleteMany({ where: { email } });
     for (const job of await getEmailQueue().getJobs(['waiting']))
       await job.remove();

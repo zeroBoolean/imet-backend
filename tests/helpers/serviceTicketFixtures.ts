@@ -102,5 +102,6 @@ export async function cleanTicketFixtures(
     where: { supplierId: { in: suppliers.map((s) => s.id) } },
   });
   await prisma.supplier.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.auditLog.deleteMany({ where: { actorId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 }

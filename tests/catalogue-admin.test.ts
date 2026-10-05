@@ -380,6 +380,9 @@ test('admin catalogue authorization, validation, publication, atomic edits, conf
     await prisma.machineCategory.deleteMany({
       where: { slug: { startsWith: key } },
     });
+    await prisma.auditLog.deleteMany({
+      where: { actor: { email: { startsWith: key } } },
+    });
     await prisma.user.deleteMany({ where: { email: { startsWith: key } } });
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await disconnectDatabase();

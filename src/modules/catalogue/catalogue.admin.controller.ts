@@ -10,7 +10,10 @@ export const catalogueAdminController = {
       res,
       201,
       'Category created',
-      await service.createCategory(res.locals.validated.body),
+      await service.createCategory(
+        res.locals.validated.body,
+        res.locals.auth.id,
+      ),
     );
   }),
   categoryUpdate: catchAsync(async (_req, res) => {
@@ -20,11 +23,15 @@ export const catalogueAdminController = {
       await service.updateCategory(
         res.locals.validated.params.id,
         res.locals.validated.body,
+        res.locals.auth.id,
       ),
     );
   }),
   categoryDelete: catchAsync(async (_req, res) => {
-    await service.deleteCategory(res.locals.validated.params.id);
+    await service.deleteCategory(
+      res.locals.validated.params.id,
+      res.locals.auth.id,
+    );
     ResponseHandler.ok(res, 'Category deleted');
   }),
   list: catchAsync(async (_req, res) => {
@@ -46,7 +53,11 @@ export const catalogueAdminController = {
       res,
       201,
       'Machine created',
-      await service.create(res.locals.validated.body),
+      await service.create(
+        res.locals.validated.body,
+        undefined,
+        res.locals.auth.id,
+      ),
     );
   }),
   update: catchAsync(async (_req, res) => {
@@ -56,6 +67,8 @@ export const catalogueAdminController = {
       await service.update(
         res.locals.validated.params.id,
         res.locals.validated.body,
+        undefined,
+        res.locals.auth.id,
       ),
     );
   }),
@@ -66,6 +79,8 @@ export const catalogueAdminController = {
       await service.remove(
         res.locals.validated.params.id,
         res.locals.validated.body.updatedAt,
+        undefined,
+        res.locals.auth.id,
       ),
     );
   }),

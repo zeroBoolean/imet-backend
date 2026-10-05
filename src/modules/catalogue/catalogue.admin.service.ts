@@ -1,3 +1,4 @@
+import { recordAudit } from '../audit/audit.record.js';
 import {
   lockSupplier,
   requireEntitlement,
@@ -68,12 +69,44 @@ export const catalogueAdminService = {
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
       include: { _count: { select: { machines: true } } },
     }),
-  createCategory: (data: CategoryInput) =>
-    mutation(() => prisma.machineCategory.create({ data })),
-  updateCategory: (id: string, data: CategoryInput) =>
-    mutation(() => prisma.machineCategory.update({ where: { id }, data })),
-  deleteCategory: (id: string) =>
-    mutation(() => prisma.machineCategory.delete({ where: { id } })),
+  createCategory: (data: CategoryInput, actorId?: string) =>
+    mutation(() =>
+      prisma.$transaction(async (tx) => {
+        const result = await tx.machineCategory.create({ data });
+        await recordAudit(
+          tx,
+          actorId,
+          'CATEGORY_CREATED',
+          'CATEGORY',
+          result.id,
+          Object.keys(data),
+        );
+        return result;
+      }),
+    ),
+  updateCategory: (id: string, data: CategoryInput, actorId?: string) =>
+    mutation(() =>
+      prisma.$transaction(async (tx) => {
+        const result = await tx.machineCategory.update({ where: { id }, data });
+        await recordAudit(
+          tx,
+          actorId,
+          'CATEGORY_UPDATED',
+          'CATEGORY',
+          id,
+          Object.keys(data),
+        );
+        return result;
+      }),
+    ),
+  deleteCategory: (id: string, actorId?: string) =>
+    mutation(() =>
+      prisma.$transaction(async (tx) => {
+        const result = await tx.machineCategory.delete({ where: { id } });
+        await recordAudit(tx, actorId, 'CATEGORY_DELETED', 'CATEGORY', id, []);
+        return result;
+      }),
+    ),
   async list({ q, categoryId, status, page, limit }: AdminListQuery) {
     const where: Prisma.MachineWhereInput = {
       ...(categoryId ? { categoryId } : {}),
@@ -122,6 +155,7 @@ export const catalogueAdminService = {
   create(
     data: MachineInput & { supplierId?: string | null },
     owner?: { supplierId: string; userId: string },
+    actorId?: string,
   ) {
     const supplierId = owner?.supplierId ?? data.supplierId;
     return mutation(() =>
@@ -134,7 +168,7 @@ export const catalogueAdminService = {
             images: data.images.length,
             specifications: data.specifications.length,
           });
-        return tx.machine.create({
+        const result = await tx.machine.create({
           data: {
             ...fields(data),
             supplierId: supplierId ?? null,
@@ -142,6 +176,18 @@ export const catalogueAdminService = {
           },
           include,
         });
+        if (!owner)
+          await recordAudit(
+            tx,
+            actorId,
+            'MACHINERY_CREATED',
+            'MACHINERY',
+            result.id,
+            Object.keys(data),
+            {},
+            result,
+          );
+        return result;
       }),
     );
   },
@@ -149,6 +195,7 @@ export const catalogueAdminService = {
     id: string,
     data: MachineInput & { updatedAt: string; supplierId?: string | null },
     owner?: { supplierId: string; userId: string },
+    actorId?: string,
   ) {
     const { updatedAt } = data;
     const nextVersion = new Date(
@@ -158,7 +205,7 @@ export const catalogueAdminService = {
       prisma.$transaction(async (tx) => {
         const current = await tx.machine.findUnique({
           where: { id },
-          select: { supplierId: true },
+          select: { supplierId: true, status: true },
         });
         if (!current || (owner && current.supplierId !== owner.supplierId))
           throw new AppError('Machine not found', 404);
@@ -205,11 +252,23 @@ export const catalogueAdminService = {
         }
         await tx.machineImage.deleteMany({ where: { machineId: id } });
         await tx.machineSpecification.deleteMany({ where: { machineId: id } });
-        return tx.machine.update({
+        const result = await tx.machine.update({
           where: { id },
           data: { ...children(data), updatedAt: nextVersion },
           include,
         });
+        if (!owner)
+          await recordAudit(
+            tx,
+            actorId,
+            'MACHINERY_UPDATED',
+            'MACHINERY',
+            id,
+            Object.keys(data),
+            current,
+            result,
+          );
+        return result;
       }),
     );
   },
@@ -217,12 +276,13 @@ export const catalogueAdminService = {
     id: string,
     updatedAt: string,
     owner?: { supplierId: string; userId: string },
+    actorId?: string,
   ) {
     return mutation(() =>
       prisma.$transaction(async (tx) => {
         const current = await tx.machine.findUnique({
           where: { id },
-          select: { supplierId: true },
+          select: { supplierId: true, status: true },
         });
         if (!current || (owner && current.supplierId !== owner.supplierId))
           throw new AppError('Machine not found', 404);
@@ -254,6 +314,16 @@ export const catalogueAdminService = {
             409,
           );
         }
+        if (!owner)
+          await recordAudit(
+            tx,
+            actorId,
+            'MACHINERY_DELETED',
+            'MACHINERY',
+            id,
+            [],
+            current,
+          );
         return { id };
       }),
     );

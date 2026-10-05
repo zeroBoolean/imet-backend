@@ -50,6 +50,7 @@ export const supplierController = {
       await service.review(
         res.locals.validated.params.id,
         res.locals.validated.body,
+        res.locals.auth.id,
       ),
     );
   }),
@@ -61,6 +62,7 @@ export const supplierController = {
       await service.adminUpdate(
         res.locals.validated.params.id,
         res.locals.validated.body,
+        res.locals.auth.id,
       ),
     );
   }),

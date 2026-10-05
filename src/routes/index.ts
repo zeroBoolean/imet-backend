@@ -1,3 +1,5 @@
+import { AnalyticsRoutes } from '../modules/analytics/analytics.routes.js';
+import { AuditRoutes } from '../modules/audit/audit.routes.js';
 import {
   ServiceTicketRoutes,
   ServiceTicketAdminRoutes,
@@ -39,6 +41,8 @@ import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use('/admin/analytics',AnalyticsRoutes);
+router.use('/admin/audit-logs',AuditRoutes);
 router.use('/service-tickets', ServiceTicketRoutes);
 router.use('/admin/service-tickets', ServiceTicketAdminRoutes);
 router.use(MediaRoutes);
