@@ -128,6 +128,25 @@ test('case-insensitive search combines with category and returns accurate empty 
   const outside = await fetch(`${base}/machines?category=${key}&page=10`);
   assert.equal((await outside.json()).data.machines.length, 0);
 });
+test('public discovery searches manufacturer/model, trims input and isolates supplier filters', async () => {
+  for (const [q, expected] of [
+    ['catalogue test manufacturer', 14],
+    ['Model 13', 1],
+    [`${key} Machine 00`, 1],
+    ['  PRECISION  ', 14],
+    ['Secret draft', 0],
+  ] as const) {
+    const query = new URLSearchParams({ category: key, q });
+    const response = await fetch(`${base}/machines?${query}`);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).data.pagination.total, expected, q);
+  }
+  const response = await fetch(
+    `${base}/machines?category=${key}&supplier=${randomUUID()}`,
+  );
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).data.pagination.total, 0);
+});
 test('details expose ordered media and specifications while drafts and unknown machines return 404', async () => {
   const response = await fetch(`${base}/machines/${key}-0`);
   assert.equal(response.status, 200);
@@ -167,6 +186,8 @@ test('invalid and injected query values are rejected and catalogue has no write 
     'page=1.5',
     'q=' + 'a'.repeat(101),
     'category=bad_slug',
+    'supplier=not-a-uuid',
+    'supplier=' + randomUUID() + '&supplier=' + randomUUID(),
     'q=a&q=b',
     'status=DRAFT',
     'sort=price',
