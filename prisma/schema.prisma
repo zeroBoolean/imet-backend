@@ -24,6 +24,11 @@ enum UserStatus {
 }
 
 model User {
+  customerTickets            ServiceTicket[]      @relation("TicketCustomer")
+  assignedTickets            ServiceTicket[]      @relation("TicketAssignee")
+  warrantyReviews            ServiceTicket[]      @relation("WarrantyReviewer")
+  ticketEvents               ServiceTicketEvent[] @relation("TicketEventActor")
+  ticketAssignments          ServiceTicketEvent[] @relation("TicketEventAssignee")
   id                         String               @id @default(uuid())
   email                      String               @unique @db.VarChar(254)
   displayName                String               @db.VarChar(100)
@@ -94,6 +99,7 @@ model MachineCategory {
 }
 
 model Machine {
+  serviceTickets ServiceTicket[]
   translations   ContentTranslation[]
   reviews        Review[]
   id             String                 @id @default(uuid())
@@ -510,6 +516,7 @@ model SalesOpportunity {
 }
 
 model SaleRecord {
+  serviceTickets     ServiceTicket[]
   reviews            Review[]
   id                 String           @id @default(uuid())
   opportunityId      String           @unique
@@ -678,4 +685,80 @@ model MachineMedia {
 
   @@index([machineId, state, position, id])
   @@map("machine_media")
+}
+
+enum ServiceTicketStatus {
+  OPEN
+  UNDER_REVIEW
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum WarrantyAssessment {
+  NOT_REQUESTED
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+enum ServiceEventVisibility {
+  PUBLIC
+  INTERNAL
+}
+
+model ServiceTicket {
+  id                   String               @id @default(uuid())
+  sequence             Int                  @unique @default(autoincrement())
+  customerId           String
+  customer             User                 @relation("TicketCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  machineId            String
+  machine              Machine              @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  saleId               String
+  sale                 SaleRecord           @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  assignedToId         String?
+  assignedTo           User?                @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
+  customerRequestId    String
+  status               ServiceTicketStatus  @default(OPEN)
+  subject              String               @db.VarChar(200)
+  description          String               @db.VarChar(10000)
+  resolution           String?              @db.VarChar(5000)
+  resolvedAt           DateTime?
+  closedAt             DateTime?
+  warrantyAssessment   WarrantyAssessment   @default(NOT_REQUESTED)
+  warrantyNote         String?              @db.VarChar(2000)
+  warrantyReviewedById String?
+  warrantyReviewedBy   User?                @relation("WarrantyReviewer", fields: [warrantyReviewedById], references: [id], onDelete: Restrict)
+  warrantyReviewedAt   DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  events               ServiceTicketEvent[]
+
+  @@unique([customerId, customerRequestId])
+  @@index([customerId, createdAt, id])
+  @@index([assignedToId, status, updatedAt, id])
+  @@index([status, updatedAt, id])
+  @@index([machineId])
+  @@index([saleId])
+  @@map("service_tickets")
+}
+
+model ServiceTicketEvent {
+  id           String                 @id @default(uuid())
+  ticketId     String
+  ticket       ServiceTicket          @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  actorId      String
+  actor        User                   @relation("TicketEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  type         String                 @db.VarChar(40)
+  visibility   ServiceEventVisibility @default(PUBLIC)
+  note         String?                @db.VarChar(5000)
+  fromStatus   ServiceTicketStatus?
+  toStatus     ServiceTicketStatus?
+  assignedToId String?
+  assignedTo   User?                  @relation("TicketEventAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
+  createdAt    DateTime               @default(now())
+
+  @@index([ticketId, createdAt, id])
+  @@map("service_ticket_events")
 }

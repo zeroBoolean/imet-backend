@@ -1,3 +1,7 @@
+import {
+  ServiceTicketRoutes,
+  ServiceTicketAdminRoutes,
+} from '../modules/serviceTicket/serviceTicket.routes.js';
 import { MediaRoutes } from '../modules/media/media.routes.js';
 import {
   TranslationRoutes,
@@ -35,6 +39,8 @@ import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use('/service-tickets', ServiceTicketRoutes);
+router.use('/admin/service-tickets', ServiceTicketAdminRoutes);
 router.use(MediaRoutes);
 router.use('/translations', TranslationRoutes);
 router.use('/admin/translations', TranslationAdminRoutes);

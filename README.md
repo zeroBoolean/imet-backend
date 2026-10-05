@@ -92,3 +92,7 @@ Completed-sale buyer reviews, admin approval/moderation, public ratings and a ho
 See [AI Translation](docs/milestone-8.md) for approved public content, admin generation, original-safe caching, OpenAI configuration and deployment/test evidence. Apply the additive migration and configure `AI_TRANSLATION_API_KEY` securely on the server for live cross-language generation.
 
 Milestone 9 adds secured machinery media uploads/delivery with durable recovery states. See [M9 setup, API and validation](docs/milestone-9.md). Deploy both additive M9 migrations and configure the existing Bunny storage zone/key on the backend; never make private RFQ storage public.
+
+## Milestone 10 — Service & Warranty
+
+The `milestone-10` branch adds completed-purchase service tickets, admin review/assignment/manual warranty assessment, assignee progress/resolution and admin closure. Read [the M10 implementation and deployment guide](docs/milestone-10.md) for permissions, APIs, pages, migration and validation. No new provider, dependency or environment variable is required.
