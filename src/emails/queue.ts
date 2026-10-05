@@ -2,6 +2,7 @@ import { config } from '../config/env.js';
 import { Queue } from 'bullmq';
 import { createRedisConnection } from './redisConnection.js';
 export interface EmailJob {
+  authIntentId?: string;
   to: string;
   subject: string;
   html: string;

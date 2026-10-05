@@ -1,15 +1,19 @@
+import { dispatchAuthEmails, deliverAuthEmail } from './authIntents.js';
 import { deliverEmail } from '../modules/notification/notification.jobs.js';
 import { disconnectDatabase } from '../config/database.js';
 import { config } from '../config/env.js';
 import { Worker } from 'bullmq';
 import { createRedisConnection } from './redisConnection.js';
 import { ResendProvider } from './providers/resendProvider.js';
-import type { EmailJob } from './queue.js';
+import { closeEmailQueue, type EmailJob } from './queue.js';
 const provider = new ResendProvider();
 const connection = createRedisConnection('worker');
 const worker = new Worker<EmailJob>(
   config.EMAIL_QUEUE_NAME,
-  (job) => deliverEmail(job.data, job.id!, provider),
+  (job) =>
+    job.data.authIntentId
+      ? deliverAuthEmail(job.data.authIntentId, provider)
+      : deliverEmail(job.data, job.id!, provider),
   { connection, concurrency: 5 },
 );
 worker.on('failed', (job) => {
@@ -17,10 +21,24 @@ worker.on('failed', (job) => {
 });
 worker.on('error', () => console.error('Email worker connection error'));
 let closing = false;
+let recovery: Promise<void> | undefined;
+const recover = () => {
+  if (recovery || closing) return;
+  recovery = dispatchAuthEmails()
+    .catch(() => console.error('Authentication email recovery failed'))
+    .finally(() => {
+      recovery = undefined;
+    });
+};
+const recoveryTimer = setInterval(recover, 15000);
+recover();
 const shutdown = async () => {
   if (closing) return;
   closing = true;
+  clearInterval(recoveryTimer);
   await worker.close();
+  await recovery;
+  await closeEmailQueue();
   await connection.quit();
   await disconnectDatabase();
 };

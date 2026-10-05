@@ -4,6 +4,21 @@ import { authService } from './auth.service.js';
 const genericEmailMessage =
   'If this address is eligible, you will receive an email shortly.';
 export const authController = {
+  google: catchAsync(async (_req, res) => {
+    ResponseHandler.ok(
+      res,
+      'Signed in',
+      await authService.google(res.locals.validated.body.idToken),
+    );
+  }),
+  googleLink: catchAsync(async (_req, res) => {
+    const auth = await authService.google(
+      res.locals.validated.body.idToken,
+      res.locals.auth.id,
+    );
+    await authService.revokeLinkedSession(auth.refreshToken);
+    ResponseHandler.ok(res, 'Google account linked');
+  }),
   register: catchAsync(async (_req, res) => {
     await authService.register(res.locals.validated.body);
     ResponseHandler.ok(res, genericEmailMessage);
@@ -48,6 +63,13 @@ export const authController = {
       body.password,
     );
     ResponseHandler.ok(res, 'Password changed. Sign in again.');
+  }),
+  refreshCoordinated: catchAsync(async (_req, res) => {
+    ResponseHandler.ok(
+      res,
+      'Session refreshed',
+      await authService.refresh(res.locals.validated.body.refreshToken, true),
+    );
   }),
   refresh: catchAsync(async (_req, res) => {
     ResponseHandler.ok(

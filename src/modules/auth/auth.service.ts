@@ -4,7 +4,13 @@ import { AppError } from '../../middleware/errorHandler.js';
 import { hashPassword, verifyPassword } from '../../utils/hashing.js';
 import { newToken, tokenHash, expiresIn } from '../../utils/tokens.js';
 import { signAccessToken } from '../../utils/jwt.js';
-import { MailService } from '../../emails/mailService.js';
+import {
+  encrypt,
+  decrypt,
+  recordAuthEmail,
+  dispatchAuthEmails,
+} from '../../emails/authIntents.js';
+import { verifyGoogleIdentity } from './google.js';
 import type { Prisma } from '../../generated/client.js';
 const publicSelect = {
   id: true,
@@ -26,21 +32,31 @@ export const authService = {
         'Account registration is currently unavailable. Please try again later.',
         503,
       );
+    const signupRole = config.PUBLIC_SIGNUP_ROLE;
     const existing = await prisma.user.findUnique({
       where: { email: data.email },
     });
-    if (existing) return;
+    if (existing) {
+      await dispatchAuthEmails(existing.id);
+      return;
+    }
     const password = await hashPassword(data.password);
     const token = newToken();
+    const expiry = expiresIn(60);
+    let userId: string | undefined;
     try {
-      await prisma.user.create({
-        data: {
-          ...data,
-          password,
-          emailVerificationTokenHash: token.hash,
-          emailVerificationExpires: expiresIn(60),
-          assignedRole: { create: { role: config.PUBLIC_SIGNUP_ROLE } },
-        },
+      userId = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            ...data,
+            password,
+            emailVerificationTokenHash: token.hash,
+            emailVerificationExpires: expiry,
+            assignedRole: { create: { role: signupRole } },
+          },
+        });
+        await recordAuthEmail(tx, user.id, 'verify-user', token, expiry);
+        return user.id;
       });
     } catch (error) {
       if (
@@ -52,12 +68,91 @@ export const authService = {
         return;
       throw error;
     }
-    await MailService.sendAuthEmail(
-      data.email,
-      data.displayName,
-      'verify-user',
-      token.raw,
-    );
+    await dispatchAuthEmails(userId);
+  },
+  async google(idToken: string, linkUserId?: string) {
+    const identity = await verifyGoogleIdentity(idToken);
+    const password = await hashPassword(newToken().raw);
+    const token = newToken();
+    const session = await prisma.$transaction(async (tx) => {
+      // Account creation/linking is serialized across workers for a Google identity/email.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${identity.email}))`;
+      let user = await tx.user.findUnique({
+        where: { googleSubject: identity.subject },
+      });
+      if (!user) {
+        user = await tx.user.findUnique({ where: { email: identity.email } });
+        if (user && user.id !== linkUserId)
+          throw new AppError(
+            'Sign in with your password, then link Google from your account settings.',
+            409,
+          );
+        if (linkUserId && (!user || user.id !== linkUserId))
+          throw new AppError(
+            'Google email must match your verified iMet account.',
+            403,
+          );
+        if (user) {
+          await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+          user = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+          if (
+            user.status !== 'ACTIVE' ||
+            !user.isEmailVerified ||
+            user.googleSubject
+          )
+            throw new AppError('Account cannot be linked', 403);
+          user = await tx.user.update({
+            where: { id: user.id },
+            data: { googleSubject: identity.subject },
+          });
+        } else {
+          if (!config.PUBLIC_SIGNUP_ROLE)
+            throw new AppError(
+              'Account registration is currently unavailable',
+              503,
+            );
+          user = await tx.user.create({
+            data: {
+              email: identity.email,
+              displayName: identity.displayName,
+              password,
+              googleSubject: identity.subject,
+              status: 'ACTIVE',
+              isEmailVerified: true,
+              assignedRole: { create: { role: config.PUBLIC_SIGNUP_ROLE } },
+            },
+          });
+        }
+      }
+      if (linkUserId && user.id !== linkUserId)
+        throw new AppError(
+          'Google account is already linked to another account',
+          409,
+        );
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+      user = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+      if (user.status !== 'ACTIVE' || !user.isEmailVerified)
+        throw new AppError('Account is not active', 403);
+      return tx.userSession.create({
+        data: {
+          userId: user.id,
+          refreshTokenHash: token.hash,
+          expiresAt: expiresIn(7 * 24 * 60),
+        },
+      });
+    });
+    return {
+      user: await this.me(session.userId),
+      accessToken: signAccessToken(session.userId, session.id),
+      refreshToken: token.raw,
+      expiresAt: Date.now() + 15 * 60000,
+    };
+  },
+  async revokeLinkedSession(raw: string) {
+    await prisma.userSession.updateMany({
+      where: { refreshTokenHash: tokenHash(raw) },
+      data: { revokedAt: new Date() },
+    });
   },
   async verify(token: string) {
     const result = await prisma.user.updateMany({
@@ -128,37 +223,43 @@ export const authService = {
     if (!user || user.status !== 'PENDING_VERIFICATION' || user.isEmailVerified)
       return;
     const token = newToken();
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerificationTokenHash: token.hash,
-        emailVerificationExpires: expiresIn(60),
-      },
+    const expiry = expiresIn(60);
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+      const changed = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          status: 'PENDING_VERIFICATION',
+          isEmailVerified: false,
+        },
+        data: {
+          emailVerificationTokenHash: token.hash,
+          emailVerificationExpires: expiry,
+        },
+      });
+      if (changed.count)
+        await recordAuthEmail(tx, user.id, 'verify-user', token, expiry);
     });
-    await MailService.sendAuthEmail(
-      email,
-      user.displayName,
-      'verify-user',
-      token.raw,
-    );
+    await dispatchAuthEmails(user.id);
   },
   async forgot(email: string) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || user.status !== 'ACTIVE' || !user.isEmailVerified) return;
     const token = newToken();
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordResetTokenHash: token.hash,
-        passwordResetExpires: expiresIn(60),
-      },
+    const expiry = expiresIn(60);
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+      const changed = await tx.user.updateMany({
+        where: { id: user.id, status: 'ACTIVE', isEmailVerified: true },
+        data: {
+          passwordResetTokenHash: token.hash,
+          passwordResetExpires: expiry,
+        },
+      });
+      if (changed.count)
+        await recordAuthEmail(tx, user.id, 'reset-password', token, expiry);
     });
-    await MailService.sendAuthEmail(
-      email,
-      user.displayName,
-      'reset-password',
-      token.raw,
-    );
+    await dispatchAuthEmails(user.id);
   },
   async reset(token: string, password: string) {
     const hash = tokenHash(token);
@@ -212,10 +313,34 @@ export const authService = {
       });
     });
   },
-  async refresh(raw: string) {
+  async refresh(raw: string, coordinated = false) {
     const oldHash = tokenHash(raw),
       next = newToken();
-    const session = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
+      if (coordinated) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${oldHash}))`;
+        const cached = await tx.authRefreshHandoff.findUnique({
+          where: { tokenHash: oldHash },
+          include: { session: { include: { user: true } } },
+        });
+        if (
+          cached &&
+          cached.expiresAt > new Date() &&
+          !cached.session.revokedAt &&
+          cached.session.expiresAt > new Date() &&
+          cached.session.user.status === 'ACTIVE' &&
+          cached.session.user.isEmailVerified
+        ) {
+          const auth = JSON.parse(decrypt(cached.encryptedResult)) as {
+            user: Awaited<ReturnType<typeof authService.me>>;
+            accessToken: string;
+            refreshToken: string;
+            expiresAt: number;
+          };
+          if (tokenHash(auth.refreshToken) === cached.session.refreshTokenHash)
+            return auth;
+        }
+      }
       const old = await tx.userSession.findUnique({
         where: { refreshTokenHash: oldHash },
         include: { user: true },
@@ -228,7 +353,14 @@ export const authService = {
         !old.user.isEmailVerified
       )
         throw new AppError('Invalid or expired session', 401);
-      const result = await tx.userSession.updateMany({
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${old.userId} FOR UPDATE`;
+      const user = await tx.user.findUnique({
+        where: { id: old.userId },
+        select: publicSelect,
+      });
+      if (!user || user.status !== 'ACTIVE' || !user.isEmailVerified)
+        throw new AppError('Invalid or expired session', 401);
+      const changed = await tx.userSession.updateMany({
         where: {
           id: old.id,
           refreshTokenHash: oldHash,
@@ -237,15 +369,30 @@ export const authService = {
         },
         data: { refreshTokenHash: next.hash },
       });
-      if (!result.count) throw new AppError('Invalid or expired session', 401);
-      return old;
+      if (!changed.count) throw new AppError('Invalid or expired session', 401);
+      const { assignedRole, ...publicUser } = user;
+      const auth = {
+        user: { ...publicUser, roles: assignedRole.map((item) => item.role) },
+        accessToken: signAccessToken(old.userId, old.id),
+        refreshToken: next.raw,
+        expiresAt: Date.now() + 15 * 60000,
+      };
+      if (coordinated)
+        await tx.authRefreshHandoff.create({
+          data: {
+            tokenHash: oldHash,
+            sessionId: old.id,
+            encryptedResult: encrypt(JSON.stringify(auth)),
+            expiresAt: new Date(Date.now() + 5000),
+          },
+        });
+      return auth;
     });
-    return {
-      user: await this.me(session.userId),
-      accessToken: signAccessToken(session.userId, session.id),
-      refreshToken: next.raw,
-      expiresAt: Date.now() + 15 * 60_000,
-    };
+    if (coordinated)
+      await prisma.authRefreshHandoff.deleteMany({
+        where: { expiresAt: { lte: new Date() } },
+      });
+    return result;
   },
   async logout(userId: string, sessionId: string, all = false) {
     await prisma.userSession.updateMany({

@@ -46,6 +46,7 @@ const schema = z.object({
   BUNNY_STORAGE_ACCESS_KEY: z.string().optional(),
   EMAIL_QUEUE_NAME: z.string().default('imet-email'),
   PUBLIC_SIGNUP_ROLE: z.enum(['BUYER']).optional(),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   JWT_SECRET: z.string().min(32),
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().default(6379),

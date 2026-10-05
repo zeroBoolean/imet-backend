@@ -33,6 +33,8 @@ model User {
   id                         String                      @id @default(uuid())
   email                      String                      @unique @db.VarChar(254)
   displayName                String                      @db.VarChar(100)
+  googleSubject              String?                     @unique
+  authEmails                 AuthEmailIntent[]
   password                   String
   status                     UserStatus                  @default(PENDING_VERIFICATION)
   isEmailVerified            Boolean                     @default(false)
@@ -72,13 +74,14 @@ model UserRoleAssignment {
 }
 
 model UserSession {
-  id               String    @id @default(uuid())
+  refreshHandoffs  AuthRefreshHandoff[]
+  id               String               @id @default(uuid())
   userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshTokenHash String    @unique
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String               @unique
   expiresAt        DateTime
   revokedAt        DateTime?
-  createdAt        DateTime  @default(now())
+  createdAt        DateTime             @default(now())
 
   @@index([userId, revokedAt])
   @@map("user_sessions")
@@ -824,4 +827,32 @@ model AuditLog {
   @@index([resourceType, resourceId, createdAt, id])
   @@index([action, createdAt, id])
   @@map("audit_logs")
+}
+
+// M1 durable authentication mail: token payload is encrypted, never plaintext in PostgreSQL.
+model AuthEmailIntent {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose        String
+  tokenHash      String
+  encryptedToken String
+  expiresAt      DateTime
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([sentAt, expiresAt])
+  @@map("auth_email_intents")
+}
+
+// Five-second encrypted handoff for simultaneous NextAuth refreshes across replicas.
+model AuthRefreshHandoff {
+  tokenHash       String      @id
+  sessionId       String
+  session         UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  encryptedResult String
+  expiresAt       DateTime
+
+  @@index([expiresAt])
+  @@map("auth_refresh_handoffs")
 }

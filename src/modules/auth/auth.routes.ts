@@ -1,10 +1,14 @@
+import { AuthRateStore } from './authRateStore.js';
+import { config } from '../../config/env.js';
 import { Router } from 'express';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { createHash } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import { validate } from '../../middleware/validation.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authController as c } from './auth.controller.js';
 import {
+  googleSchema,
   registerSchema,
   loginSchema,
   emailSchema,
@@ -15,13 +19,25 @@ import {
 } from './auth.validation.js';
 const limiter = (limit: number, includeClient = true) =>
   rateLimit({
+    store: new AuthRateStore(
+      `${config.EMAIL_QUEUE_NAME}:auth-limit:${includeClient ? 'login' : 'email'}`,
+    ),
     windowMs: 15 * 60_000,
+    // Unverified subject is only a rate-limit bucket, just like an unverified login email.
+    // All identity claims are independently verified before authentication.
     keyGenerator: (req) =>
       `${includeClient ? ipKeyGenerator(req.ip || '127.0.0.1') : 'recipient'}:${createHash(
         'sha256',
       )
         .update(
-          String(req.body?.email || req.path)
+          String(
+            req.body?.email ||
+              (typeof req.body?.idToken === 'string' &&
+              req.body.idToken.length <= 16000
+                ? (jwt.decode(req.body.idToken) as jwt.JwtPayload | null)?.sub
+                : undefined) ||
+              req.path,
+          )
             .trim()
             .toLowerCase(),
         )
@@ -45,6 +61,14 @@ AuthRoutes.post(
   validate(registerSchema),
   c.register,
 );
+AuthRoutes.post('/google', loginLimiter, validate(googleSchema), c.google);
+AuthRoutes.post(
+  '/google/link',
+  authenticate(),
+  loginLimiter,
+  validate(googleSchema),
+  c.googleLink,
+);
 AuthRoutes.post('/login', loginLimiter, validate(loginSchema), c.login);
 AuthRoutes.post('/verify-user', loginLimiter, validate(tokenSchema), c.verify);
 AuthRoutes.post(
@@ -64,6 +88,11 @@ AuthRoutes.post(
   loginLimiter,
   validate(resetSchema),
   c.reset,
+);
+AuthRoutes.post(
+  '/refresh-coordinated',
+  validate(refreshSchema),
+  c.refreshCoordinated,
 );
 AuthRoutes.post('/refresh', validate(refreshSchema), c.refresh);
 AuthRoutes.get('/me', authenticate(), c.me);
