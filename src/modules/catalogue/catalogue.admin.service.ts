@@ -1,3 +1,8 @@
+import {
+  bindCatalogueImages,
+  retireCatalogueImages,
+  imagePath,
+} from './catalogue.images.service.js';
 import { recordAudit } from '../audit/audit.record.js';
 import {
   lockSupplier,
@@ -16,7 +21,7 @@ const include = {
   category: { select: { id: true, name: true, slug: true } },
   images: {
     orderBy: [{ position: 'asc' }, { id: 'asc' }],
-    select: { url: true, alt: true },
+    select: { url: true, alt: true, assetId: true },
   },
   specifications: {
     orderBy: [{ position: 'asc' }, { id: 'asc' }],
@@ -41,7 +46,12 @@ async function mutation<T>(action: () => Promise<T>): Promise<T> {
 function children(data: MachineInput) {
   return {
     images: {
-      create: data.images.map((image, position) => ({ ...image, position })),
+      create: data.images.map((image, position) => ({
+        alt: image.alt,
+        assetId: image.assetId ?? null,
+        url: image.assetId ? imagePath(image.assetId) : image.url!,
+        position,
+      })),
     },
     specifications: {
       create: data.specifications.map((specification, position) => ({
@@ -84,10 +94,40 @@ export const catalogueAdminService = {
         return result;
       }),
     ),
-  updateCategory: (id: string, data: CategoryInput, actorId?: string) =>
+  updateCategory: (
+    id: string,
+    data: CategoryInput & { updatedAt?: string },
+    actorId?: string,
+  ) =>
     mutation(() =>
       prisma.$transaction(async (tx) => {
-        const result = await tx.machineCategory.update({ where: { id }, data });
+        const { updatedAt, ...fields } = data;
+        const changed = await tx.machineCategory.updateMany({
+          where: {
+            id,
+            ...(updatedAt ? { updatedAt: new Date(updatedAt) } : {}),
+          },
+          data: {
+            ...fields,
+            updatedAt: new Date(
+              Math.max(
+                Date.now(),
+                updatedAt ? new Date(updatedAt).getTime() + 1 : 0,
+              ),
+            ),
+          },
+        });
+        if (!changed.count) {
+          if (!(await tx.machineCategory.findUnique({ where: { id } })))
+            throw new AppError('Category not found', 404);
+          throw new AppError(
+            'This category changed. Reload it before saving',
+            409,
+          );
+        }
+        const result = await tx.machineCategory.findUniqueOrThrow({
+          where: { id },
+        });
         await recordAudit(
           tx,
           actorId,
@@ -168,6 +208,13 @@ export const catalogueAdminService = {
             images: data.images.length,
             specifications: data.specifications.length,
           });
+        await bindCatalogueImages(
+          tx,
+          data.images.flatMap((image) =>
+            image.assetId ? [image.assetId] : [],
+          ),
+          owner?.userId ?? actorId,
+        );
         const result = await tx.machine.create({
           data: {
             ...fields(data),
@@ -250,6 +297,18 @@ export const catalogueAdminService = {
             409,
           );
         }
+        await bindCatalogueImages(
+          tx,
+          data.images.flatMap((image) =>
+            image.assetId ? [image.assetId] : [],
+          ),
+          owner?.userId ?? actorId,
+          id,
+        );
+        const oldImages = await tx.machineImage.findMany({
+          where: { machineId: id },
+          select: { assetId: true },
+        });
         await tx.machineImage.deleteMany({ where: { machineId: id } });
         await tx.machineSpecification.deleteMany({ where: { machineId: id } });
         const result = await tx.machine.update({
@@ -257,6 +316,10 @@ export const catalogueAdminService = {
           data: { ...children(data), updatedAt: nextVersion },
           include,
         });
+        await retireCatalogueImages(
+          tx,
+          oldImages.flatMap((image) => (image.assetId ? [image.assetId] : [])),
+        );
         if (!owner)
           await recordAudit(
             tx,
@@ -298,6 +361,10 @@ export const catalogueAdminService = {
             'Remove advanced media before deleting this machine',
             409,
           );
+        const oldImages = await tx.machineImage.findMany({
+          where: { machineId: id },
+          select: { assetId: true },
+        });
         const deleted = await tx.machine.deleteMany({
           where: { id, updatedAt: new Date(updatedAt) },
         });
@@ -314,6 +381,10 @@ export const catalogueAdminService = {
             409,
           );
         }
+        await retireCatalogueImages(
+          tx,
+          oldImages.flatMap((image) => (image.assetId ? [image.assetId] : [])),
+        );
         if (!owner)
           await recordAudit(
             tx,

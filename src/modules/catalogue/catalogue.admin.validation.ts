@@ -16,6 +16,32 @@ const imageUrl = z
 export const categoryBody = z
   .object({ name: text(100), slug: slug(120) })
   .strict();
+export const machineImageInput = z
+  .object({
+    url: z.string().max(2000).optional(),
+    assetId: z.uuid().nullable().optional(),
+    alt: text(250),
+  })
+  .strict()
+  .superRefine((image, ctx) => {
+    if (image.assetId) {
+      if (
+        image.url &&
+        image.url !== `/catalogue/images/${image.assetId}/content`
+      )
+        ctx.addIssue({
+          code: 'custom',
+          path: ['url'],
+          message: 'Invalid managed image reference',
+        });
+    } else if (!imageUrl.safeParse(image.url).success) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['url'],
+        message: 'Use an HTTPS image URL without embedded credentials',
+      });
+    }
+  });
 export const machineBody = z
   .object({
     name: text(200),
@@ -25,10 +51,7 @@ export const machineBody = z
     model: text(200),
     categoryId: z.uuid(),
     status: z.enum(['DRAFT', 'PUBLISHED']).default('DRAFT'),
-    images: z
-      .array(z.object({ url: imageUrl, alt: text(250) }).strict())
-      .max(20)
-      .default([]),
+    images: z.array(machineImageInput).max(20).default([]),
     specifications: z
       .array(z.object({ label: text(100), value: text(500) }).strict())
       .max(100)
@@ -53,7 +76,10 @@ const adminMachineBody = machineBody.extend({
 });
 export const adminSchemas = {
   categoryCreate: z.object({ body: categoryBody }),
-  categoryUpdate: z.object({ params, body: categoryBody }),
+  categoryUpdate: z.object({
+    params,
+    body: categoryBody.extend({ updatedAt: z.iso.datetime() }),
+  }),
   id: z.object({ params }),
   list: z.object({ query: adminListQuery }),
   create: z.object({ body: adminMachineBody }),

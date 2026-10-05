@@ -116,7 +116,11 @@ test('admin catalogue authorization, validation, publication, atomic edits, conf
         await request(
           `/admin/catalogue/categories/${categoryId}`,
           'PUT',
-          { name: 'Updated category', slug: key },
+          {
+            name: 'Updated category',
+            slug: key,
+            updatedAt: created.body.data.updatedAt,
+          },
           token,
         )
       ).status,

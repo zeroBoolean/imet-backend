@@ -24,7 +24,9 @@
     "admin:create": "tsx scripts/create-admin.ts",
     "env:init": "node scripts/init-local-env.mjs",
     "worker:rfq": "tsx src/modules/rfq/rfq.worker.ts",
-    "worker:rfq:prod": "node dist/modules/rfq/rfq.worker.js"
+    "worker:rfq:prod": "node dist/modules/rfq/rfq.worker.js",
+    "worker:catalogue": "tsx src/modules/catalogue/catalogue.images.worker.ts",
+    "worker:catalogue:prod": "node dist/modules/catalogue/catalogue.images.worker.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

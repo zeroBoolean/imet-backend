@@ -24,6 +24,7 @@ enum UserStatus {
 }
 
 model User {
+  catalogueUploads           CatalogueImageAsset[]
   auditLogs                  AuditLog[]
   customerTickets            ServiceTicket[]             @relation("TicketCustomer")
   assignedTickets            ServiceTicket[]             @relation("TicketAssignee")
@@ -94,11 +95,12 @@ enum MachineStatus {
 }
 
 model MachineCategory {
-  id       String    @id @default(uuid())
-  name     String    @db.VarChar(100)
-  slug     String    @unique @db.VarChar(120)
-  machines Machine[]
-  rfqs     Rfq[]
+  updatedAt DateTime  @default(now()) @updatedAt
+  id        String    @id @default(uuid())
+  name      String    @db.VarChar(100)
+  slug      String    @unique @db.VarChar(120)
+  machines  Machine[]
+  rfqs      Rfq[]
 
   @@map("machine_categories")
 }
@@ -131,12 +133,14 @@ model Machine {
 }
 
 model MachineImage {
-  id        String  @id @default(uuid())
+  assetId   String?              @unique
+  asset     CatalogueImageAsset? @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  id        String               @id @default(uuid())
   machineId String
-  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  machine   Machine              @relation(fields: [machineId], references: [id], onDelete: Cascade)
   url       String
-  alt       String  @db.VarChar(250)
-  position  Int     @default(0)
+  alt       String               @db.VarChar(250)
+  position  Int                  @default(0)
 
   @@index([machineId, position])
   @@map("machine_images")
@@ -855,4 +859,22 @@ model AuthRefreshHandoff {
 
   @@index([expiresAt])
   @@map("auth_refresh_handoffs")
+}
+
+model CatalogueImageAsset {
+  id         String         @id @default(uuid())
+  ownerId    String
+  owner      User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  state      MediaState     @default(UPLOADING)
+  storageKey String         @unique
+  fileType   String
+  fileName   String         @db.VarChar(250)
+  fileSize   Int
+  sha256     String         @db.VarChar(64)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  images     MachineImage[]
+
+  @@index([ownerId, state, createdAt])
+  @@map("catalogue_image_assets")
 }
