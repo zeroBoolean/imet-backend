@@ -17,6 +17,7 @@ test('Resend adapter sends the expected payload/idempotency key and rejects prov
     const body = JSON.parse(String(options?.body));
     assert.deepEqual(body.to, ['recipient@example.test']);
     assert.equal(body.from, 'fixture@example.test');
+    assert.equal(body.text, 'Fixture plain text');
     return new Response(
       JSON.stringify(
         fail
@@ -39,6 +40,7 @@ test('Resend adapter sends the expected payload/idempotency key and rejects prov
       to: 'recipient@example.test',
       subject: 'Fixture',
       html: '<p>Fixture email</p>',
+      text: 'Fixture plain text',
     };
     assert.deepEqual(await provider.send(mail, 'fixture-job'), {
       id: 'fixture-message-id',

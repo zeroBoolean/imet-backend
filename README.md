@@ -96,3 +96,7 @@ Milestone 9 adds secured machinery media uploads/delivery with durable recovery 
 ## Milestone 10 — Service & Warranty
 
 The `milestone-10` branch adds completed-purchase service tickets, admin review/assignment/manual warranty assessment, assignee progress/resolution and admin closure. Read [the M10 implementation and deployment guide](docs/milestone-10.md) for permissions, APIs, pages, migration and validation. No new provider, dependency or environment variable is required.
+
+## Milestone 11 — Notifications
+
+The `milestone-11` branch adds durable, email-only service notifications through the existing Resend/BullMQ infrastructure and shared RFQ delivery recovery. See [M11 setup, event recipients and verification](docs/milestone-11.md). Apply the additive migration and restart the API and both existing workers. Live delivery needs the existing backend Resend key and verified sender; there is no inbox or new dependency.

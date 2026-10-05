@@ -1,8 +1,7 @@
 import { syncSalesForRfq } from '../sales/sales.sync.js';
 import { prisma } from '../../config/database.js';
 import { config } from '../../config/env.js';
-import { getEmailQueue } from '../../emails/queue.js';
-import { rfqEmail } from '../../emails/templates/rfqEmail.js';
+import { dispatchNotificationEmails } from '../notification/notification.jobs.js';
 import { rfqEvent, closeRfqLeads } from './rfqEvent.service.js';
 import { lockRfq, touch } from './rfq.access.js';
 export async function expireRfqs(now = new Date()) {
@@ -104,81 +103,5 @@ export async function expireRfqs(now = new Date()) {
   return due.length;
 }
 export async function dispatchRfqEmails() {
-  const pending = await prisma.rfqEmailDelivery.findMany({
-    where: {
-      status: { in: ['PENDING', 'FAILED'] },
-      user: { status: 'ACTIVE' },
-      attempts: { lt: 5 },
-    },
-    include: {
-      user: {
-        select: { id: true, email: true, displayName: true, status: true },
-      },
-      event: {
-        include: {
-          rfq: {
-            select: { id: true, rfqNumber: true, title: true, buyerId: true },
-          },
-        },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-    take: 100,
-  });
-  for (const delivery of pending) {
-    if (delivery.user.status !== 'ACTIVE') continue;
-    const r = delivery.event.rfq;
-    const lead = await prisma.rfqRecipient.findUnique({
-      where: {
-        rfqId_recipientId: { rfqId: r.id, recipientId: delivery.userId },
-      },
-      select: { id: true },
-    });
-    const path =
-      r.buyerId === delivery.userId
-        ? `/dashboard/rfqs/${r.id}`
-        : lead
-          ? `/dashboard/leads/${lead.id}`
-          : `/dashboard/admin/rfqs/${r.id}`;
-    try {
-      const previous = await getEmailQueue().getJob(delivery.id);
-      if (previous && (await previous.getState()) === 'failed')
-        await previous.retry();
-      await getEmailQueue().add(
-        'rfq',
-        {
-          to: delivery.user.email,
-          subject: `${r.rfqNumber} · ${delivery.event.eventType.replaceAll('_', ' ')} — iMet`,
-          html: rfqEmail(
-            delivery.user.displayName,
-            r.rfqNumber,
-            r.title,
-            delivery.event.eventType,
-            new URL(path, config.FRONTEND_URL).toString(),
-          ),
-          rfqDeliveryId: delivery.id,
-        },
-        { jobId: delivery.id, removeOnComplete: false },
-      );
-      await prisma.rfqEmailDelivery.updateMany({
-        where: { id: delivery.id, status: { in: ['PENDING', 'FAILED'] } },
-        data: {
-          status: 'QUEUED',
-          queuedAt: new Date(),
-          attempts: { increment: 1 },
-          lastError: null,
-        },
-      });
-    } catch {
-      await prisma.rfqEmailDelivery.update({
-        where: { id: delivery.id },
-        data: {
-          status: 'FAILED',
-          lastError: 'Email dispatch failed',
-          attempts: { increment: 1 },
-        },
-      });
-    }
-  }
-  return pending.length;
+  return dispatchNotificationEmails('rfq');
 }

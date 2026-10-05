@@ -24,37 +24,38 @@ enum UserStatus {
 }
 
 model User {
-  customerTickets            ServiceTicket[]      @relation("TicketCustomer")
-  assignedTickets            ServiceTicket[]      @relation("TicketAssignee")
-  warrantyReviews            ServiceTicket[]      @relation("WarrantyReviewer")
-  ticketEvents               ServiceTicketEvent[] @relation("TicketEventActor")
-  ticketAssignments          ServiceTicketEvent[] @relation("TicketEventAssignee")
-  id                         String               @id @default(uuid())
-  email                      String               @unique @db.VarChar(254)
-  displayName                String               @db.VarChar(100)
+  customerTickets            ServiceTicket[]             @relation("TicketCustomer")
+  assignedTickets            ServiceTicket[]             @relation("TicketAssignee")
+  warrantyReviews            ServiceTicket[]             @relation("WarrantyReviewer")
+  ticketEvents               ServiceTicketEvent[]        @relation("TicketEventActor")
+  ticketAssignments          ServiceTicketEvent[]        @relation("TicketEventAssignee")
+  id                         String                      @id @default(uuid())
+  email                      String                      @unique @db.VarChar(254)
+  displayName                String                      @db.VarChar(100)
   password                   String
-  status                     UserStatus           @default(PENDING_VERIFICATION)
-  isEmailVerified            Boolean              @default(false)
-  emailVerificationTokenHash String?              @unique
+  status                     UserStatus                  @default(PENDING_VERIFICATION)
+  isEmailVerified            Boolean                     @default(false)
+  emailVerificationTokenHash String?                     @unique
   emailVerificationExpires   DateTime?
-  passwordResetTokenHash     String?              @unique
+  passwordResetTokenHash     String?                     @unique
   passwordResetExpires       DateTime?
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
   supplier                   Supplier?
   assignedRole               UserRoleAssignment[]
   sessions                   UserSession[]
-  rfqs                       Rfq[]                @relation("RfqBuyer")
+  rfqs                       Rfq[]                       @relation("RfqBuyer")
   rfqRecipients              RfqRecipient[]
   rfqUploads                 RfqAttachment[]
   quoteUploads               RfqQuoteAttachment[]
   rfqMessages                RfqMessage[]
   rfqEvents                  RfqEvent[]
+  notificationDeliveries     NotificationEmailDelivery[]
   rfqEmailDeliveries         RfqEmailDelivery[]
   salesEvents                SalesEvent[]
   recordedSales              SaleRecord[]
-  authoredReviews            Review[]             @relation("ReviewAuthor")
-  moderatedReviews           Review[]             @relation("ReviewModerator")
+  authoredReviews            Review[]                    @relation("ReviewAuthor")
+  moderatedReviews           Review[]                    @relation("ReviewModerator")
 
   @@index([status])
   @@map("users")
@@ -308,6 +309,8 @@ enum RfqEmailStatus {
   QUEUED
   SENT
   FAILED
+  SUPPRESSED
+  REVIEW_REQUIRED
 }
 
 model Rfq {
@@ -466,18 +469,22 @@ model RfqEvent {
 
 // Durable email intents connect committed audit events to the existing email queue.
 model RfqEmailDelivery {
-  id        String         @id @default(uuid())
-  eventId   String
-  event     RfqEvent       @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  userId    String
-  user      User           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  status    RfqEmailStatus @default(PENDING)
-  attempts  Int            @default(0)
-  lastError String?        @db.VarChar(500)
-  queuedAt  DateTime?
-  sentAt    DateTime?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  sendAttempts       Int            @default(0)
+  firstAttemptAt     DateTime?
+  providerMessageId  String?        @db.VarChar(200)
+  dispatchLeaseUntil DateTime?
+  id                 String         @id @default(uuid())
+  eventId            String
+  event              RfqEvent       @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  userId             String
+  user               User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status             RfqEmailStatus @default(PENDING)
+  attempts           Int            @default(0)
+  lastError          String?        @db.VarChar(500)
+  queuedAt           DateTime?
+  sentAt             DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@unique([eventId, userId])
   @@index([status, createdAt])
@@ -745,20 +752,45 @@ model ServiceTicket {
 }
 
 model ServiceTicketEvent {
-  id           String                 @id @default(uuid())
+  deliveries   NotificationEmailDelivery[]
+  id           String                      @id @default(uuid())
   ticketId     String
-  ticket       ServiceTicket          @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  ticket       ServiceTicket               @relation(fields: [ticketId], references: [id], onDelete: Restrict)
   actorId      String
-  actor        User                   @relation("TicketEventActor", fields: [actorId], references: [id], onDelete: Restrict)
-  type         String                 @db.VarChar(40)
-  visibility   ServiceEventVisibility @default(PUBLIC)
-  note         String?                @db.VarChar(5000)
+  actor        User                        @relation("TicketEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  type         String                      @db.VarChar(40)
+  visibility   ServiceEventVisibility      @default(PUBLIC)
+  note         String?                     @db.VarChar(5000)
   fromStatus   ServiceTicketStatus?
   toStatus     ServiceTicketStatus?
   assignedToId String?
-  assignedTo   User?                  @relation("TicketEventAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
-  createdAt    DateTime               @default(now())
+  assignedTo   User?                       @relation("TicketEventAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
+  createdAt    DateTime                    @default(now())
 
   @@index([ticketId, createdAt, id])
   @@map("service_ticket_events")
+}
+
+// Transactional service email intents; delivery uses the existing email queue.
+model NotificationEmailDelivery {
+  id                 String             @id @default(uuid())
+  eventId            String
+  event              ServiceTicketEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status             RfqEmailStatus     @default(PENDING)
+  attempts           Int                @default(0)
+  sendAttempts       Int                @default(0)
+  firstAttemptAt     DateTime?
+  providerMessageId  String?            @db.VarChar(200)
+  dispatchLeaseUntil DateTime?
+  lastError          String?            @db.VarChar(500)
+  queuedAt           DateTime?
+  sentAt             DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([status, createdAt, id])
+  @@map("notification_email_deliveries")
 }

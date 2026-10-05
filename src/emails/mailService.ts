@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getEmailQueue } from './queue.js';
 import { config } from '../config/env.js';
-import { authEmail } from './templates/authEmail.js';
+import { authEmail, authEmailText } from './templates/authEmail.js';
 export const MailService = {
   async sendAuthEmail(
     to: string,
@@ -21,6 +21,7 @@ export const MailService = {
         to,
         subject: `${action} — iMet Machinery`,
         html: authEmail(name, action, link.toString()),
+        text: authEmailText(name, action, link.toString()),
       },
       { jobId: randomUUID() },
     );

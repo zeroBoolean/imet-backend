@@ -1,3 +1,4 @@
+import { dispatchNotificationEmails } from '../notification/notification.jobs.js';
 import { Queue, Worker } from 'bullmq';
 import { createRedisConnection } from '../../emails/redisConnection.js';
 import { config } from '../../config/env.js';
@@ -22,6 +23,7 @@ const worker = new Worker(
   async () => {
     await expireRfqs();
     await dispatchRfqEmails();
+    await dispatchNotificationEmails('service');
   },
   { connection, concurrency: 1 },
 );

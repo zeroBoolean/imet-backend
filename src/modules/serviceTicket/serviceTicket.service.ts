@@ -1,3 +1,4 @@
+import { recordServiceNotifications } from '../notification/notification.service.js';
 import { prisma } from '../../config/database.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { databaseMutation, nextVersion } from '../../utils/databaseMutation.js';
@@ -184,7 +185,7 @@ async function event(
     assignedToId?: string;
   } = {},
 ) {
-  return tx.serviceTicketEvent.create({
+  const created = await tx.serviceTicketEvent.create({
     data: {
       ticketId: t.id,
       actorId: a.id,
@@ -196,6 +197,8 @@ async function event(
       assignedToId: input.assignedToId,
     },
   });
+  await recordServiceNotifications(tx, t, created);
+  return created;
 }
 const mutation = <T>(
   id: string,

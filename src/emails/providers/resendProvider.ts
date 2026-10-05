@@ -15,6 +15,7 @@ export class ResendProvider {
       {
         subject: email.subject,
         html: email.html,
+        ...(email.text ? { text: email.text } : {}),
         from: config.RESEND_FROM_EMAIL!,
         to: [email.to],
       },
