@@ -280,6 +280,69 @@ test('RFQ routing, privacy, caps, quote races, messages, contact gating, expiry 
     const winner = detail.recipients.find(
       (x: { contact: unknown }) => x.contact,
     );
+    // M4 contact entitlement is enforced on direct API reads, including after acceptance.
+    assert.equal((await req(`/rfqs/${r.id}`, stranger.token)).status, 404);
+    assert.equal((await req(`/rfqs/${r.id}`)).status, 401);
+    const winningSupplier = await prisma.supplier.findUniqueOrThrow({
+      where: { userId: winner.recipientId },
+    });
+    const winningTerm = await prisma.supplierSubscription.findFirstOrThrow({
+      where: { supplierId: winningSupplier.id, isCurrent: true },
+    });
+    const contact = async () =>
+      (await req(`/rfqs/${r.id}`, buyer.token)).body.data.recipients.find(
+        (x: { id: string }) => x.id === winner.id,
+      ).contact;
+    for (const patch of [
+      { endsAt: new Date(Date.now() - 1000) },
+      { startsAt: new Date(Date.now() + 1000) },
+      { state: 'SUSPENDED' as const },
+      { state: 'CANCELLED' as const },
+      { canRevealContacts: false },
+      { rfqEnabled: false },
+      { supplierType: 'INTERNATIONAL' as const },
+    ]) {
+      await prisma.supplierSubscription.update({
+        where: { id: winningTerm.id },
+        data: patch,
+      });
+      assert.equal(await contact(), null);
+      await prisma.supplierSubscription.update({
+        where: { id: winningTerm.id },
+        data: {
+          endsAt: winningTerm.endsAt,
+          startsAt: winningTerm.startsAt,
+          state: winningTerm.state,
+          canRevealContacts: winningTerm.canRevealContacts,
+          rfqEnabled: winningTerm.rfqEnabled,
+          supplierType: winningTerm.supplierType,
+        },
+      });
+    }
+    for (const status of ['PENDING', 'SUSPENDED', 'INACTIVE'] as const) {
+      await prisma.supplier.update({
+        where: { id: winningSupplier.id },
+        data: { status },
+      });
+      assert.equal(await contact(), null);
+    }
+    await prisma.supplier.update({
+      where: { id: winningSupplier.id },
+      data: { status: 'APPROVED' },
+    });
+    await prisma.user.update({
+      where: { id: winner.recipientId },
+      data: { status: 'SUSPENDED' },
+    });
+    assert.equal(await contact(), null);
+    await prisma.user.update({
+      where: { id: winner.recipientId },
+      data: { status: 'ACTIVE' },
+    });
+    assert.ok(
+      await contact(),
+      'eligible accepted winner contact restored without buyer subscription',
+    );
     await prisma.supplier.update({
       where: { userId: winner.recipientId },
       data: { contactBlocked: true },

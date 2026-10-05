@@ -11,6 +11,7 @@ import { bunnyStorage } from '../../services/bunnyStorage.js';
 import {
   catalogueImageService as service,
   MAX_IMAGE_BYTES,
+  checkSupplierUpload,
 } from './catalogue.images.service.js';
 const params = validate(z.object({ params: z.object({ id: z.uuid() }) }));
 const upload = multer({
@@ -55,6 +56,7 @@ CatalogueImageRoutes.get(
     ResponseHandler.ok(res, 'Catalogue image storage', {
       configured: bunnyStorage.isConfigured(),
       maxBytes: MAX_IMAGE_BYTES,
+      checkSupplierUpload,
     }),
   ),
 );
@@ -106,6 +108,78 @@ CatalogueImageRoutes.get(
 );
 CatalogueImageRoutes.delete(
   '/admin/catalogue/image-uploads/:id',
+  params,
+  catchAsync(async (_req, res) =>
+    ResponseHandler.ok(
+      res,
+      'Image removed',
+      await service.remove(res.locals.validated.params.id, res.locals.auth.id),
+    ),
+  ),
+);
+
+// Reuse the same upload lifecycle for entitled owning suppliers.
+CatalogueImageRoutes.use('/supplier/catalogue/image-uploads', authenticate());
+CatalogueImageRoutes.get(
+  '/supplier/catalogue/image-uploads/status',
+  catchAsync(async (_req, res) =>
+    ResponseHandler.ok(res, 'Catalogue image storage', {
+      configured: bunnyStorage.isConfigured(),
+      maxBytes: MAX_IMAGE_BYTES,
+    }),
+  ),
+);
+CatalogueImageRoutes.post(
+  '/supplier/catalogue/image-uploads',
+  limiter,
+  catchAsync(async (_req, res, next) => {
+    await checkSupplierUpload(res.locals.auth.id, res.locals.auth.sessionId);
+    next();
+  }),
+  (req, res, next) =>
+    upload(req, res, (error) =>
+      next(
+        error
+          ? new AppError('Upload one JPEG or PNG up to 10 MB', 422)
+          : undefined,
+      ),
+    ),
+  catchAsync(async (req, res) => {
+    if (!req.file) throw new AppError('Image file required', 422);
+    ResponseHandler.send(
+      res,
+      201,
+      'Image uploaded',
+      await service.upload(
+        res.locals.auth.id,
+        req.file,
+        res.locals.auth.sessionId,
+        true,
+      ),
+    );
+  }),
+);
+CatalogueImageRoutes.get(
+  '/supplier/catalogue/image-uploads/:id/preview',
+  params,
+  catchAsync(async (_req, res) => {
+    const file = await service.content(
+      res.locals.validated.params.id,
+      res.locals.auth.id,
+      res.locals.auth.sessionId,
+      true,
+    );
+    res
+      .set({
+        'Content-Type': file.fileType,
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+      })
+      .send(file.buffer);
+  }),
+);
+CatalogueImageRoutes.delete(
+  '/supplier/catalogue/image-uploads/:id',
   params,
   catchAsync(async (_req, res) =>
     ResponseHandler.ok(

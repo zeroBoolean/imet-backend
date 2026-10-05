@@ -1,3 +1,4 @@
+import { SupplierAssetRoutes } from '../modules/supplier/supplier.assets.routes.js';
 import { CatalogueImageRoutes } from '../modules/catalogue/catalogue.images.routes.js';
 import { AnalyticsRoutes } from '../modules/analytics/analytics.routes.js';
 import { AuditRoutes } from '../modules/audit/audit.routes.js';
@@ -43,6 +44,7 @@ import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
 router.use(CatalogueImageRoutes);
+router.use(SupplierAssetRoutes);
 router.use('/admin/analytics',AnalyticsRoutes);
 router.use('/admin/audit-logs',AuditRoutes);
 router.use('/service-tickets', ServiceTicketRoutes);

@@ -25,9 +25,41 @@ export const profileBody = z
     country: text(100),
     registrationNumber: text(150).nullable(),
     website: nullableUrl,
-    logoUrl: nullableUrl,
+    logoUrl: z
+      .string()
+      .max(2000)
+      .nullable()
+      .refine(
+        (value) =>
+          value === null ||
+          httpsUrl.safeParse(value).success ||
+          /^\/suppliers\/assets\/[0-9a-f-]{36}\/logo$/.test(value),
+        'Use an HTTPS URL or managed logo',
+      ),
+    logoAssetId: z.uuid().nullable().optional(),
     documents: z
-      .array(z.object({ name: text(200), url: httpsUrl }).strict())
+      .array(
+        z
+          .object({
+            name: text(200),
+            url: z.string().max(2000),
+            assetId: z.uuid().optional(),
+          })
+          .strict()
+          .superRefine((document, ctx) => {
+            if (
+              document.assetId
+                ? document.url !==
+                  `/supplier/assets/${document.assetId}/content`
+                : !httpsUrl.safeParse(document.url).success
+            )
+              ctx.addIssue({
+                code: 'custom',
+                path: ['url'],
+                message: 'Use a valid managed document or HTTPS URL',
+              });
+          }),
+      )
       .max(20),
   })
   .strict();
@@ -39,6 +71,7 @@ export const permittedProfileBody = profileBody.pick({
   businessPhone: true,
   website: true,
   logoUrl: true,
+  logoAssetId: true,
 });
 export const paging = z
   .object({
@@ -83,9 +116,9 @@ export const supplierSchemas = {
         updatedAt: z.iso.datetime(),
       })
       .strict()
-      .refine(
-        (body) => body.status !== 'REJECTED' || !!body.reviewNote,
-        'Provide a rejection reason',
-      ),
+      .refine((body) => body.status !== 'REJECTED' || !!body.reviewNote, {
+        message: 'Provide a rejection reason',
+        path: ['reviewNote'],
+      }),
   }),
 };

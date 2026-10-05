@@ -24,6 +24,7 @@ enum UserStatus {
 }
 
 model User {
+  supplierUploads            SupplierAsset[]
   catalogueUploads           CatalogueImageAsset[]
   auditLogs                  AuditLog[]
   customerTickets            ServiceTicket[]             @relation("TicketCustomer")
@@ -186,6 +187,9 @@ enum MarketplaceVisibility {
 }
 
 model Supplier {
+  logoAssetId        String?                @unique
+  logoAsset          SupplierAsset?         @relation("SupplierLogo", fields: [logoAssetId], references: [id], onDelete: Restrict)
+  assets             SupplierAsset[]        @relation("SupplierAssets")
   translations       ContentTranslation[]
   reviews            Review[]
   id                 String                 @id @default(uuid())
@@ -877,4 +881,31 @@ model CatalogueImageAsset {
 
   @@index([ownerId, state, createdAt])
   @@map("catalogue_image_assets")
+}
+
+enum SupplierAssetPurpose {
+  LOGO
+  DOCUMENT
+}
+
+model SupplierAsset {
+  id         String               @id @default(uuid())
+  ownerId    String
+  owner      User                 @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  supplierId String?
+  supplier   Supplier?            @relation("SupplierAssets", fields: [supplierId], references: [id], onDelete: Restrict)
+  logoFor    Supplier?            @relation("SupplierLogo")
+  purpose    SupplierAssetPurpose
+  state      MediaState           @default(UPLOADING)
+  storageKey String               @unique
+  fileType   String
+  fileName   String               @db.VarChar(250)
+  fileSize   Int
+  sha256     String               @db.VarChar(64)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@index([ownerId, state, createdAt])
+  @@index([supplierId, purpose, state])
+  @@map("supplier_assets")
 }

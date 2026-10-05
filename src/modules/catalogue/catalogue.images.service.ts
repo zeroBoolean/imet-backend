@@ -5,7 +5,10 @@ import type { Prisma } from '../../generated/client.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { bunnyStorage } from '../../services/bunnyStorage.js';
 import { imageDimensions } from '../media/media.validation.js';
-import { publicMachineWhere } from '../subscription/subscription.entitlements.js';
+import {
+  requireEntitlement,
+  publicMachineWhere,
+} from '../subscription/subscription.entitlements.js';
 export const imagePath = (id: string) => `/catalogue/images/${id}/content`;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export async function validateCatalogueImage(buffer: Buffer) {
@@ -71,8 +74,38 @@ export async function retireCatalogueImages(
       data: { state: 'DELETING' },
     });
 }
+
+export async function checkSupplierUpload(userId: string, sessionId?: string) {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.findFirst({
+      where: {
+        id: userId,
+        ...(sessionId
+          ? {
+              sessions: {
+                some: {
+                  id: sessionId,
+                  revokedAt: null,
+                  expiresAt: { gt: new Date() },
+                },
+              },
+            }
+          : {}),
+      },
+      include: { supplier: true },
+    });
+    if (!user?.supplier) throw new AppError('Supplier access required', 403);
+    await requireEntitlement(tx, user.supplier.id, { userId, images: 1 });
+  });
+}
 export const catalogueImageService = {
-  async upload(ownerId: string, file: Express.Multer.File, sessionId?: string) {
+  async upload(
+    ownerId: string,
+    file: Express.Multer.File,
+    sessionId?: string,
+    supplierMode = false,
+  ) {
+    if (supplierMode) await checkSupplierUpload(ownerId, sessionId);
     if (!bunnyStorage.isConfigured())
       throw new AppError('Bunny file storage is not configured', 503);
     const detected = await validateCatalogueImage(file.buffer),
@@ -115,13 +148,16 @@ export const catalogueImageService = {
     try {
       await bunnyStorage.request(asset.storageKey, 'PUT', file.buffer);
       // Live role/session middleware gates the request; role is rechecked after storage I/O.
+      if (supplierMode) await checkSupplierUpload(ownerId, sessionId);
       await prisma.$transaction(async (tx) => {
         const admin = await tx.user.findFirst({
           where: {
             id: ownerId,
             status: 'ACTIVE',
             isEmailVerified: true,
-            assignedRole: { some: { role: 'ADMIN' } },
+            ...(supplierMode
+              ? {}
+              : { assignedRole: { some: { role: 'ADMIN' as const } } }),
             ...(sessionId
               ? {
                   sessions: {
@@ -227,7 +263,12 @@ export const catalogueImageService = {
     }
     return { processed: assets.length };
   },
-  async content(id: string, adminId?: string, sessionId?: string) {
+  async content(
+    id: string,
+    adminId?: string,
+    sessionId?: string,
+    supplierMode = false,
+  ) {
     const checkAdmin = async () => {
       if (!adminId) return;
       const user = await prisma.user.findFirst({
@@ -235,7 +276,9 @@ export const catalogueImageService = {
           id: adminId,
           status: 'ACTIVE',
           isEmailVerified: true,
-          assignedRole: { some: { role: 'ADMIN' } },
+          ...(supplierMode
+            ? {}
+            : { assignedRole: { some: { role: 'ADMIN' as const } } }),
           ...(sessionId
             ? {
                 sessions: {
@@ -257,7 +300,21 @@ export const catalogueImageService = {
       id,
       state: 'ACTIVE',
       ...(adminId
-        ? { OR: [{ ownerId: adminId }, { images: { some: {} } }] }
+        ? {
+            OR: [
+              {
+                ownerId: adminId,
+                ...(supplierMode ? { images: { none: {} } } : {}),
+              },
+              {
+                images: {
+                  some: supplierMode
+                    ? { machine: { supplier: { is: { userId: adminId } } } }
+                    : {},
+                },
+              },
+            ],
+          }
         : { images: { some: { machine: publicMachineWhere() } } }),
     });
     const asset = await prisma.catalogueImageAsset.findFirst({

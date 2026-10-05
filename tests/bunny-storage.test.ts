@@ -15,7 +15,7 @@ test('shared Bunny transport protects fixed hosts, namespaces, credentials, time
     async (input: RequestInfo | URL, init?: RequestInit) => {
       assert.match(
         String(input),
-        /^https:\/\/storage.bunnycdn.com\/fixture-zone\/(rfq|machinery|catalogue)\//,
+        /^https:\/\/storage.bunnycdn.com\/fixture-zone\/(rfq|machinery|catalogue|supplier)\//,
       );
       assert.equal(init?.redirect, 'error');
       assert.equal(
@@ -29,10 +29,16 @@ test('shared Bunny transport protects fixed hosts, namespaces, credentials, time
   const id = '00000000-0000-4000-8000-000000000000',
     media = `machinery/${id}/${id}.glb`,
     rfq = `rfq/${id}/${id}.pdf`,
-    catalogue = `catalogue/${id}/${id}.png`;
+    catalogue = `catalogue/${id}/${id}.png`,
+    supplier = `supplier/${id}/${id}.pdf`;
   try {
     await bunnyStorage.request(media, 'PUT', Buffer.from('fixture'));
     await bunnyStorage.request(catalogue, 'PUT', Buffer.from('fixture'));
+    await bunnyStorage.request(supplier, 'PUT', Buffer.from('fixture'));
+    await assert.rejects(storageRequest(supplier, 'GET'));
+    await assert.rejects(
+      bunnyStorage.request(`supplier/${id}/${id}.svg`, 'GET'),
+    );
     await assert.rejects(storageRequest(catalogue, 'GET'));
     await storageRequest(rfq, 'PUT', Buffer.from('fixture'));
     await assert.rejects(storageRequest(media, 'GET'));

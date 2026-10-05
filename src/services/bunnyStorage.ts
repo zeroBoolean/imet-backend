@@ -7,7 +7,7 @@ export const bunnyStorage = {
     if (!this.isConfigured())
       throw new AppError('Bunny file storage is not configured', 503);
     if (
-      !/^(?:catalogue\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:png|jpg)|rfq\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:pdf|png|jpg)|machinery\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:glb|png|jpg))$/.test(
+      !/^(?:supplier\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:pdf|png|jpg)|catalogue\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:png|jpg)|rfq\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:pdf|png|jpg)|machinery\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:glb|png|jpg))$/.test(
         key,
       )
     )

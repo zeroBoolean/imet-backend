@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { bindSupplierAssets } from './supplier.assets.service.js';
 import { recordAudit } from '../audit/audit.record.js';
 import { prisma } from '../../config/database.js';
 import type { Prisma } from '../../generated/client.js';
@@ -61,10 +63,17 @@ export const supplierService = {
               'You already have a supplier application or profile',
               409,
             );
+          const logoAssetId = await bindSupplierAssets(
+            tx,
+            existing.id,
+            userId,
+            data,
+          );
           return tx.supplier.update({
             where: { id: existing.id },
             data: {
               ...data,
+              logoAssetId,
               status: 'PENDING',
               isVerified: false,
               marketplaceVisible: false,
@@ -73,8 +82,14 @@ export const supplierService = {
             include: ownInclude,
           });
         }
-        return tx.supplier.create({
-          data: { ...data, userId },
+        const id = randomUUID();
+        await tx.supplier.create({
+          data: { ...data, logoAssetId: null, id, userId },
+        });
+        const logoAssetId = await bindSupplierAssets(tx, id, userId, data);
+        return tx.supplier.update({
+          where: { id },
+          data: { logoAssetId },
           include: ownInclude,
         });
       }),
@@ -90,6 +105,7 @@ export const supplierService = {
       | 'businessPhone'
       | 'website'
       | 'logoUrl'
+      | 'logoAssetId'
     > & { updatedAt: string },
   ) {
     return databaseMutation(() =>
@@ -106,12 +122,18 @@ export const supplierService = {
             403,
           );
         const { updatedAt, ...fields } = data;
-        const result = await tx.supplier.updateMany({
-          where: { id: supplier.id, updatedAt: new Date(updatedAt) },
-          data: { ...fields, updatedAt: nextVersion(updatedAt) },
-        });
-        if (!result.count)
+        if (supplier.updatedAt.toISOString() !== updatedAt)
           throw new AppError('Profile changed. Reload before saving', 409);
+        const logoAssetId = await bindSupplierAssets(
+          tx,
+          supplier.id,
+          userId,
+          fields,
+        );
+        await tx.supplier.update({
+          where: { id: supplier.id },
+          data: { ...fields, logoAssetId, updatedAt: nextVersion(updatedAt) },
+        });
         return tx.supplier.findUniqueOrThrow({
           where: { id: supplier.id },
           include: ownInclude,
@@ -242,10 +264,12 @@ export const supplierService = {
             data: { userId: supplier.userId, role: roleFor(data.type) },
           });
         }
+        const logoAssetId = await bindSupplierAssets(tx, id, actorId, fields);
         const result = await tx.supplier.update({
           where: { id },
           data: {
             ...fields,
+            logoAssetId,
             isVerified: false,
             updatedAt: nextVersion(updatedAt),
           },

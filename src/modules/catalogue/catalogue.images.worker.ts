@@ -1,3 +1,4 @@
+import { supplierAssetService } from '../supplier/supplier.assets.service.js';
 import { catalogueImageService } from './catalogue.images.service.js';
 import { disconnectDatabase } from '../../config/database.js';
 // Reuses durable asset states and Bunny DELETE; no second queue or storage provider.
@@ -9,6 +10,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const)
 while (!stopped) {
   try {
     await catalogueImageService.cleanup();
+    await supplierAssetService.cleanup();
   } catch {
     console.error('Catalogue image cleanup deferred; retrying');
   }
