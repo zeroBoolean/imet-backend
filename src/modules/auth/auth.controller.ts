@@ -19,6 +19,11 @@ export const authController = {
     await authService.revokeLinkedSession(auth.refreshToken);
     ResponseHandler.ok(res, 'Google account linked');
   }),
+  registerSupplier: catchAsync(async (_req, res) => {
+    const { profile, planId, ...account } = res.locals.validated.body;
+    await authService.register(account, { profile, planId });
+    ResponseHandler.ok(res, genericEmailMessage);
+  }),
   register: catchAsync(async (_req, res) => {
     await authService.register(res.locals.validated.body);
     ResponseHandler.ok(res, genericEmailMessage);

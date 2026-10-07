@@ -1,3 +1,4 @@
+import { supplierRegistration } from '../payment/payment.validation.js';
 import { AuthRateStore } from './authRateStore.js';
 import { config } from '../../config/env.js';
 import { Router } from 'express';
@@ -61,6 +62,12 @@ AuthRoutes.post(
   validate(registerSchema),
   c.register,
 );
+AuthRoutes.post(
+  '/register-supplier',
+  emailLimiter,
+  validate(supplierRegistration),
+  c.registerSupplier,
+);
 AuthRoutes.post('/google', loginLimiter, validate(googleSchema), c.google);
 AuthRoutes.post(
   '/google/link',
@@ -95,7 +102,7 @@ AuthRoutes.post(
   c.refreshCoordinated,
 );
 AuthRoutes.post('/refresh', validate(refreshSchema), c.refresh);
-AuthRoutes.get('/me', authenticate(), c.me);
+AuthRoutes.get('/me', authenticate([], true), c.me);
 AuthRoutes.post(
   '/change-password',
   authenticate(),
@@ -103,5 +110,5 @@ AuthRoutes.post(
   validate(changeSchema),
   c.change,
 );
-AuthRoutes.post('/logout', authenticate(), c.logout);
-AuthRoutes.post('/logout-all', authenticate(), c.logoutAll);
+AuthRoutes.post('/logout', authenticate([], true), c.logout);
+AuthRoutes.post('/logout-all', authenticate([], true), c.logoutAll);

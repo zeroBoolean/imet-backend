@@ -62,6 +62,17 @@ export const userService = {
             include: { assignedRole: true },
           });
           if (!target) throw new AppError('User not found', 404);
+          if (
+            target.status === 'PENDING' &&
+            data.status &&
+            data.status !== 'PENDING' &&
+            data.status !== 'SUSPENDED' &&
+            data.status !== 'INACTIVE'
+          )
+            throw new AppError(
+              'Use supplier manual activation with a plan and audit reason',
+              409,
+            );
           if (data.status === 'ACTIVE' && !target.isEmailVerified)
             throw new AppError(
               'Email must be verified before activating an account',

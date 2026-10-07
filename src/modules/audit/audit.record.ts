@@ -23,7 +23,8 @@ export type AuditAction =
   | 'SUBSCRIPTION_PLAN_UPDATED'
   | 'SUBSCRIPTION_ASSIGNED'
   | 'SUBSCRIPTION_UPDATED'
-  | 'REVIEW_MODERATED';
+  | 'REVIEW_MODERATED'
+  | 'SUPPLIER_MANUAL_ACTIVATION';
 type StateInput = {
   status?: UserStatus | MachineStatus | SupplierStatus | ReviewStatus;
   state?: SubscriptionState;
@@ -59,6 +60,11 @@ export async function recordAudit(
   changedFields: string[],
   before: StateInput = {},
   after: StateInput = {},
+  activation?: {
+    activationMethod: string;
+    activationReason: string;
+    targetUserId: string;
+  },
 ) {
   if (!actorId) throw new AppError('Audit actor is required', 403);
   if (
@@ -83,6 +89,7 @@ export async function recordAudit(
         changedFields: [
           ...new Set(changedFields.filter((f) => f !== 'updatedAt')),
         ].sort(),
+        ...(activation ?? {}),
         before: safeState(before),
         after: safeState(after),
       },

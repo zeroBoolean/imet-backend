@@ -30,7 +30,7 @@ SupplierAssetRoutes.get(
       .send(file.buffer);
   }),
 );
-SupplierAssetRoutes.use('/supplier/assets', authenticate());
+SupplierAssetRoutes.use('/supplier/assets', authenticate([], true));
 SupplierAssetRoutes.get(
   '/supplier/assets/status',
   catchAsync(async (_req, res) =>

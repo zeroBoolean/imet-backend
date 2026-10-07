@@ -17,6 +17,7 @@ enum UserRole {
 }
 
 enum UserStatus {
+  PENDING
   ACTIVE
   INACTIVE
   SUSPENDED
@@ -24,6 +25,8 @@ enum UserStatus {
 }
 
 model User {
+  payments                   PaymentTransaction[]
+  activatedSubscriptions     SupplierSubscription[]      @relation("SubscriptionActivator")
   supplierUploads            SupplierAsset[]
   catalogueUploads           CatalogueImageAsset[]
   auditLogs                  AuditLog[]
@@ -246,6 +249,13 @@ model SubscriptionPlan {
 }
 
 model SupplierSubscription {
+  payments            PaymentTransaction[]
+  planVersion         DateTime?
+  activationMethod    ActivationMethod?
+  activatedById       String?
+  activatedBy         User?                 @relation("SubscriptionActivator", fields: [activatedById], references: [id], onDelete: SetNull)
+  activatedAt         DateTime?
+  activationReason    String?               @db.VarChar(2000)
   id                  String                @id @default(uuid())
   supplierId          String
   supplier            Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
@@ -908,4 +918,54 @@ model SupplierAsset {
   @@index([ownerId, state, createdAt])
   @@index([supplierId, purpose, state])
   @@map("supplier_assets")
+}
+
+enum ActivationMethod {
+  PAYMENT
+  ADMIN_MANUAL
+}
+
+enum PaymentProvider {
+  SSLCOMMERZ
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+  REVIEW
+}
+
+model PaymentTransaction {
+  id                   String               @id @default(uuid())
+  userId               String
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subscriptionId       String
+  subscription         SupplierSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  provider             PaymentProvider      @default(SSLCOMMERZ)
+  transactionId        String               @unique @db.VarChar(40)
+  idempotencyKey       String
+  validationId         String?              @unique @db.VarChar(100)
+  amount               Decimal              @db.Decimal(12, 2)
+  currency             String               @db.VarChar(3)
+  status               PaymentStatus        @default(PENDING)
+  gatewayStatus        String?              @db.VarChar(40)
+  gatewayTransactionId String?              @db.VarChar(150)
+  gatewayResponse      Json?
+  gatewayUrl           String?
+  sessionKey           String?              @db.VarChar(200)
+  riskLevel            String?              @db.VarChar(20)
+  reviewReason         String?              @db.VarChar(300)
+  paidAt               DateTime?
+  lastCheckedAt        DateTime?
+  expiresAt            DateTime
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status, createdAt])
+  @@index([subscriptionId, status])
+  @@map("payment_transactions")
 }

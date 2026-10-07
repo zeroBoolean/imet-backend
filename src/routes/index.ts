@@ -1,3 +1,7 @@
+import {
+  PaymentRoutes,
+  PaymentAdminRoutes,
+} from '../modules/payment/payment.routes.js';
 import { SupplierAssetRoutes } from '../modules/supplier/supplier.assets.routes.js';
 import { CatalogueImageRoutes } from '../modules/catalogue/catalogue.images.routes.js';
 import { AnalyticsRoutes } from '../modules/analytics/analytics.routes.js';
@@ -43,10 +47,12 @@ import { AuthRoutes } from '../modules/auth/auth.routes.js';
 import { Router } from 'express';
 import { HealthRoutes } from '../modules/health/health.routes.js';
 const router = Router();
+router.use('/payments', PaymentRoutes);
+router.use('/admin', PaymentAdminRoutes);
 router.use(CatalogueImageRoutes);
 router.use(SupplierAssetRoutes);
-router.use('/admin/analytics',AnalyticsRoutes);
-router.use('/admin/audit-logs',AuditRoutes);
+router.use('/admin/analytics', AnalyticsRoutes);
+router.use('/admin/audit-logs', AuditRoutes);
 router.use('/service-tickets', ServiceTicketRoutes);
 router.use('/admin/service-tickets', ServiceTicketAdminRoutes);
 router.use(MediaRoutes);

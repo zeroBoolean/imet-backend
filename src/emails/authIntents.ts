@@ -53,10 +53,10 @@ async function prepare(id: string) {
   if (!row || row.sentAt || row.expiresAt <= new Date()) return null;
   const valid =
     row.purpose === 'verify-user'
-      ? row.user.status === 'PENDING_VERIFICATION' &&
+      ? ['PENDING_VERIFICATION', 'PENDING'].includes(row.user.status) &&
         !row.user.isEmailVerified &&
         row.user.emailVerificationTokenHash === row.tokenHash
-      : row.user.status === 'ACTIVE' &&
+      : ['ACTIVE', 'PENDING'].includes(row.user.status) &&
         row.user.isEmailVerified &&
         row.user.passwordResetTokenHash === row.tokenHash;
   if (!valid) return null;

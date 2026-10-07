@@ -1,5 +1,7 @@
 # Milestone 4 — Supplier and subscription management
 
+> Updated activation rules: the newer supplier-payment brief supersedes the initial manual-only payment boundary below. See [supplier-payment-activation.md](supplier-payment-activation.md) for SSLCOMMERZ, pending supplier accounts and audited manual activation. Existing catalogue/RFQ/sales behavior remains compatible.
+
 M4 builds on M3 using the existing Express controller/service/validation modules, Prisma/PostgreSQL, NextAuth, typed frontend API services and React Hook Form/Zod forms. AloSkill remains unchanged. Suppliers/manufacturers subscribe; buyers do not. Activation is manual and no payment integration is included.
 
 ## Setup

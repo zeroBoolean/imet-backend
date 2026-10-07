@@ -18,7 +18,7 @@ export async function supplierAssetAccess(
   const user = await prisma.user.findFirst({
     where: {
       id: userId,
-      status: 'ACTIVE',
+      status: { in: ['ACTIVE', 'PENDING'] },
       isEmailVerified: true,
       ...(sessionId
         ? {
@@ -41,6 +41,7 @@ export async function supplierAssetAccess(
     !admin &&
     user.supplier &&
     !(
+      (user.status === 'PENDING' && user.supplier.status === 'PENDING') ||
       user.supplier.status === 'REJECTED' ||
       (user.supplier.status === 'APPROVED' && purpose === 'LOGO')
     )

@@ -1,4 +1,9 @@
-import type { Prisma, SupplierSubscription } from '../../generated/client.js';
+import type {
+  Prisma,
+  SupplierSubscription,
+  SubscriptionPlan,
+  SupplierType,
+} from '../../generated/client.js';
 import { AppError } from '../../middleware/errorHandler.js';
 export function effectiveState(
   term: Pick<SupplierSubscription, 'state' | 'startsAt' | 'endsAt'>,
@@ -138,4 +143,49 @@ export async function requireEntitlement(
   )
     throw new AppError('Plan machinery listing limit exceeded', 403);
   return supplier;
+}
+
+export function snapshot(plan: SubscriptionPlan, type: SupplierType) {
+  return {
+    planId: plan.id,
+    planVersion: plan.updatedAt,
+    planName: plan.name,
+    supplierType: type,
+    durationDays: plan.durationDays,
+    price: plan.price,
+    currency: plan.currency,
+    listingLimit: plan.listingLimit,
+    imageLimit: plan.imageLimit,
+    specificationLimit: plan.specificationLimit,
+    rfqEnabled: plan.rfqEnabled,
+    leadLimitPerMonth: plan.leadLimitPerMonth,
+    canRevealContacts: plan.canRevealContacts,
+    canPublishMachinery: plan.canPublishMachinery,
+    visibility: plan.visibility,
+  };
+}
+export async function eligiblePlan(
+  tx: Prisma.TransactionClient,
+  planId: string,
+  supplierId: string,
+  type: SupplierType,
+) {
+  await tx.$queryRaw`SELECT id FROM subscription_plans WHERE id = ${planId} FOR UPDATE`;
+  const plan = await tx.subscriptionPlan.findUnique({ where: { id: planId } });
+  if (!plan || !plan.isActive || !plan.eligibleTypes.includes(type))
+    throw new AppError('Choose an active, eligible plan', 409);
+  const machines = await tx.machine.findMany({
+    where: { supplierId },
+    select: { _count: { select: { images: true, specifications: true } } },
+  });
+  if (
+    machines.length > plan.listingLimit ||
+    machines.some(
+      (m) =>
+        m._count.images > plan.imageLimit ||
+        m._count.specifications > plan.specificationLimit,
+    )
+  )
+    throw new AppError('Existing listings exceed this plan limits', 409);
+  return plan;
 }

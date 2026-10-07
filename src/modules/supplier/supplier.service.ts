@@ -13,6 +13,7 @@ import {
 } from '../subscription/subscription.entitlements.js';
 import type { ProfileInput } from './supplier.validation.js';
 const ownInclude = {
+  user: { select: { id: true, status: true, isEmailVerified: true } },
   subscriptions: { orderBy: { createdAt: 'desc' as const } },
 };
 const publicSelect = {

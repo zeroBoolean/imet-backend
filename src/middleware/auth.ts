@@ -4,7 +4,7 @@ import { AppError } from './errorHandler.js';
 import { verifyAccessToken } from '../utils/jwt.js';
 import type { UserRole } from '../generated/enums.js';
 export const authenticate =
-  (roles: UserRole[] = []): RequestHandler =>
+  (roles: UserRole[] = [], allowPending = false): RequestHandler =>
   async (req, res, next) => {
     try {
       const header = req.headers.authorization;
@@ -22,7 +22,11 @@ export const authenticate =
         session.expiresAt <= new Date()
       )
         throw new AppError('Invalid or expired session', 401);
-      if (session.user.status !== 'ACTIVE' || !session.user.isEmailVerified)
+      if (
+        (session.user.status !== 'ACTIVE' &&
+          !(allowPending && session.user.status === 'PENDING')) ||
+        !session.user.isEmailVerified
+      )
         throw new AppError('Account is not active', 403);
       const assignedRoles = session.user.assignedRole.map((item) => item.role);
       if (roles.length && !roles.some((role) => assignedRoles.includes(role)))

@@ -2,7 +2,12 @@ import { recordAudit } from '../audit/audit.record.js';
 import { prisma } from '../../config/database.js';
 import { AppError } from '../../middleware/errorHandler.js';
 import { databaseMutation, nextVersion } from '../../utils/databaseMutation.js';
-import { effectiveState, lockSupplier } from './subscription.entitlements.js';
+import {
+  effectiveState,
+  lockSupplier,
+  snapshot,
+  eligiblePlan,
+} from './subscription.entitlements.js';
 import type { PlanInput } from './subscription.validation.js';
 export const subscriptionService = {
   publicPlans: () =>
@@ -125,37 +130,12 @@ export const subscriptionService = {
             'Approve the supplier before assigning a subscription',
             409,
           );
-        await tx.$queryRaw`SELECT id FROM subscription_plans WHERE id = ${data.planId} FOR UPDATE`;
-        const plan = await tx.subscriptionPlan.findUnique({
-          where: { id: data.planId },
-        });
-        if (
-          !plan ||
-          !plan.isActive ||
-          !plan.eligibleTypes.includes(supplier.type)
-        )
-          throw new AppError(
-            'Choose an active plan eligible for this supplier type',
-            409,
-          );
-        const listings = await tx.machine.findMany({
-          where: { supplierId },
-          select: {
-            _count: { select: { images: true, specifications: true } },
-          },
-        });
-        if (
-          listings.length > plan.listingLimit ||
-          listings.some(
-            (machine) =>
-              machine._count.images > plan.imageLimit ||
-              machine._count.specifications > plan.specificationLimit,
-          )
-        )
-          throw new AppError(
-            'Existing machinery exceeds this plan limits. Adjust listings or choose another plan',
-            409,
-          );
+        const plan = await eligiblePlan(
+          tx,
+          data.planId,
+          supplierId,
+          supplier.type,
+        );
         await tx.supplierSubscription.updateMany({
           where: { supplierId, isCurrent: true },
           data: { isCurrent: false, state: 'CANCELLED' },
@@ -163,23 +143,10 @@ export const subscriptionService = {
         const term = await tx.supplierSubscription.create({
           data: {
             supplierId,
-            planId: plan.id,
+            ...snapshot(plan, supplier.type),
             state: data.state,
             startsAt: new Date(data.startsAt),
             endsAt: new Date(data.endsAt),
-            planName: plan.name,
-            supplierType: supplier.type,
-            durationDays: plan.durationDays,
-            price: plan.price,
-            currency: plan.currency,
-            listingLimit: plan.listingLimit,
-            imageLimit: plan.imageLimit,
-            specificationLimit: plan.specificationLimit,
-            rfqEnabled: plan.rfqEnabled,
-            leadLimitPerMonth: plan.leadLimitPerMonth,
-            canRevealContacts: plan.canRevealContacts,
-            canPublishMachinery: plan.canPublishMachinery,
-            visibility: plan.visibility,
           },
         });
         await recordAudit(

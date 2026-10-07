@@ -1,6 +1,20 @@
 import 'dotenv/config';
 import { z } from 'zod';
 const schema = z.object({
+  SSLCOMMERZ_STORE_ID: z.string().min(1).optional(),
+  SSLCOMMERZ_STORE_PASSWORD: z.string().min(1).optional(),
+  SSLCOMMERZ_IS_LIVE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  SSLCOMMERZ_API_BASE_URL: z.url().optional(),
+  SSLCOMMERZ_VALIDATION_BASE_URL: z.url().optional(),
+  SSLCOMMERZ_CURRENCIES: z
+    .string()
+    .regex(/^[A-Z]{3}(,[A-Z]{3})*$/)
+    .default('BDT'),
+  PAYMENT_CALLBACK_ORIGIN: z.url().optional(),
+
   AI_TRANSLATION_API_KEY: z.string().optional(),
   AI_TRANSLATION_MODEL: z
     .string()
