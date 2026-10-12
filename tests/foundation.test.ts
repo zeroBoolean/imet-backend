@@ -1,12 +1,13 @@
+import express from 'express';
 import assert from 'node:assert/strict';
-import { after, before, test } from 'node:test';
 import type { Server } from 'node:http';
+import { after, before, test } from 'node:test';
 import { z } from 'zod';
 import app from '../src/app.js';
 import { disconnectDatabase } from '../src/config/database.js';
+import { config } from '../src/config/env.js';
 import { errorHandler } from '../src/middleware/errorHandler.js';
 import { validate } from '../src/middleware/validation.js';
-import express from 'express';
 
 let server: Server;
 let base: string;
@@ -46,14 +47,27 @@ test('malformed JSON returns a safe error without exposing parser details', asyn
   assert.equal(response.status, 400);
   assert.equal((await response.json()).message, 'Invalid JSON body');
 });
+// test('security headers and configured frontend CORS are returned', async () => {
+//   const response = await fetch(`${base}/api/v1/health`, {
+//     headers: { Origin: 'http://localhost:3000' },
+//   });
+//   assert.equal(
+//     response.headers.get('access-control-allow-origin'),
+//     'http://localhost:3000',
+//   );
+//   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+//   assert.equal(response.headers.get('x-powered-by'), null);
+// });
 test('security headers and configured frontend CORS are returned', async () => {
   const response = await fetch(`${base}/api/v1/health`, {
-    headers: { Origin: 'http://localhost:3000' },
+    headers: { Origin: config.FRONTEND_URL },
   });
+
   assert.equal(
     response.headers.get('access-control-allow-origin'),
-    'http://localhost:3000',
+    config.FRONTEND_URL,
   );
+
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get('x-powered-by'), null);
 });
